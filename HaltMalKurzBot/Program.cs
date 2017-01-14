@@ -15,10 +15,23 @@ namespace HaltMalKurzBot
     #region Main Class
     class Program
     {
+        //SYNTACTICAL INFORMATION:  Fields (the ones with get and set) start with UPPERCASE letters.    Example: public int Bla { get; }
+        //                          Variables or Constants start with lowercase letters.                Example: public int bla = 0;
         #region Constants
+        #region File Ids
+        private const string achMeinDeinKänguruFileId = "BQADAgAD4QADuNXvD7DVvOPPLJ9FAg";
+        private const string achMeinDeinKleinkünstlerFileId = "BQADAgAD4wADuNXvD0s8uqEC4GaoAg";
+        private const string achMeinDeinPinguinFileId = "BQADAgAD5QADuNXvD4d55YERfBxOAg";
+        private const string gruppenSchnickSchnackSchnuckKänguruFileId = "BQADAgAD5wADuNXvD92soH-U6_CdAg";
+        private const string gruppenSchnickSchnackSchnuckKleinkünstlerFileId = "BQADAgAD6QADuNXvD5CXgSytenphAg";
+        private const string gruppenSchnickSchnackSchnuckPinguinFileId = "BQADAgAD6wADuNXvD2NaohEJcbgLAg";
+        private const string haltMalKurzKänguruFileId = "BQADAgAD7QADuNXvD9AZy4cPVhiKAg";
+        private const string haltMalKurzKleinkünstlerFileId = "BQADAgAD7wADuNXvDyjwPV3Kw965Ag";
+        private const string haltMalKurzPinguinFileId = "BQADAgAD8QADuNXvDwRzCZZI2Yt2Ag";
+        #endregion
         public const string emoji_witzig = "😂";
         public const string emoji_nichtwitzig = "😐";
-        public const string emoji_ratzupaltuff = "💩";
+        public const string emoji_razupaltuff = "💩";
         public const string emoji_känguru = "🐨";
         public const string emoji_pinguin = "🐧";
         public const string emoji_kleinkünstler = "🎸";
@@ -123,25 +136,25 @@ namespace HaltMalKurzBot
     #region Card
     class Card
     {
-        public int symbolId { get; }
-        public int colorId { get; }
-        public int typeId { get; }
+        public int SymbolId { get; }
+        public int ColorId { get; }
+        public int TypeId { get; }
         public Card(int symbolId, int typeId)
         {
-            this.symbolId = symbolId;
+            SymbolId = symbolId;
             if (typeId < 0)
             {
-                this.colorId = Color.IdNichtWitzig;
+                ColorId = Color.IdNichtWitzig;
             }
             else if (typeId == 0)
             {
-                this.colorId = Color.IdRatzupaltuff;
+                ColorId = Color.IdRazupaltuff;
             }
             else if (typeId > 0)
             {
-                this.colorId = Color.IdWitzig;
+                ColorId = Color.IdWitzig;
             }
-            this.typeId = typeId;
+            TypeId = typeId;
         }
     }
     #endregion
@@ -173,7 +186,7 @@ namespace HaltMalKurzBot
             int naziKarten = 15,
             int polizeiKarten = 9,
             int kapitalismusKarten = 3,
-            int ratzupaltuffKarten = 2)
+            int razupaltuffKarten = 2)
         {
             int t;
             for (int i = 1; i < haltMalKurzKarten + 1; i++)
@@ -325,10 +338,10 @@ namespace HaltMalKurzBot
                         break;
                 }
             }
-            for (int i = 1; i < ratzupaltuffKarten + 1; i++)
+            for (int i = 1; i < razupaltuffKarten + 1; i++)
             {
-                t = Type.IdRatzupaltuff;
-                addCard(new Card(Symbol.IdRatzupaltuff, t));
+                t = Type.IdRazupaltuff;
+                addCard(new Card(Symbol.IdRazupaltuff, t));
             }
         }
         #endregion
@@ -449,9 +462,11 @@ namespace HaltMalKurzBot
     {
         //Not fully implemented
         public int Id { get; }
-        public ArrayList players { get; }
+        public ArrayList Players { get; }
         private bool running;
         public bool IsRunning { get { return running; } }
+        private int turn;
+        public Player TurnPlayer { get { return (Player) Players[turn]; } }
         public Game()
         {
             running = false;
@@ -460,8 +475,12 @@ namespace HaltMalKurzBot
 
         public bool addPlayer(Player p)
         {
-            players.Add(p);
-            return true;
+            if (!running)
+            {
+                Players.Add(p);
+                return true;
+            }
+            return false;
         }
 
         public void start()
@@ -487,18 +506,18 @@ namespace HaltMalKurzBot
     {
         //Not fully implemented
         public long Id { get; }
-        public User user { get; }
-        public string firstName { get; }
-        public string fullName { get; }
+        public User User { get; }
+        public string FirstName { get; }
+        public string FullName { get; }
         public Player(User u)
         {
-            user = u;
+            User = u;
             Id = u.Id;
-            firstName = u.FirstName;
-            fullName = firstName;
+            FirstName = u.FirstName;
+            FullName = FirstName;
             if (u.LastName != null)
             {
-                fullName += " " + u.LastName;
+                FullName += " " + u.LastName;
             }
         }
     }
@@ -508,7 +527,7 @@ namespace HaltMalKurzBot
 
     static class Color
     {
-        public static int IdRatzupaltuff { get { return 0; } }
+        public static int IdRazupaltuff { get { return 0; } }
         public static int IdWitzig { get { return 1; } }
         public static int IdNichtWitzig { get { return 2; } }
     }
@@ -518,7 +537,7 @@ namespace HaltMalKurzBot
 
     static class Symbol
     {
-        public static int IdRatzupaltuff { get { return -1; } }
+        public static int IdRazupaltuff { get { return -1; } }
         public static int IdAll { get { return 0; } }
         public static int IdKänguru { get { return 1; } }
         public static int IdPinguin { get { return 2; } }
@@ -530,11 +549,11 @@ namespace HaltMalKurzBot
 
     static class Type
     {
-        //Witzige Karten haben eine positive Id, nicht witzige eine negative und die Ausnahme Ratzupaltuff ist 0
+        //Witzige Karten haben eine positive Id, nicht witzige eine negative und die Ausnahme Razupaltuff ist 0
         public static int IdKapitalismus { get { return -3; } }
         public static int IdPolizei { get { return -2; } }
         public static int IdNazi { get { return -1; } }
-        public static int IdRatzupaltuff { get { return 0; } }
+        public static int IdRazupaltuff { get { return 0; } }
         public static int IdHaltMalKurz { get { return 1; } }
         public static int IdVollversammlung { get { return 2; } }
         public static int IdSchnickSchnackSchnuck { get { return 3; } }
