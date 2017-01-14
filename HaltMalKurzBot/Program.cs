@@ -19,15 +19,35 @@ namespace HaltMalKurzBot
         //                          Variables or Constants start with lowercase letters.                Example: public int bla = 0;
         #region Constants
         #region File Ids
-        private const string achMeinDeinKänguruFileId = "BQADAgAD4QADuNXvD7DVvOPPLJ9FAg";
-        private const string achMeinDeinKleinkünstlerFileId = "BQADAgAD4wADuNXvD0s8uqEC4GaoAg";
-        private const string achMeinDeinPinguinFileId = "BQADAgAD5QADuNXvD4d55YERfBxOAg";
-        private const string gruppenSchnickSchnackSchnuckKänguruFileId = "BQADAgAD5wADuNXvD92soH-U6_CdAg";
-        private const string gruppenSchnickSchnackSchnuckKleinkünstlerFileId = "BQADAgAD6QADuNXvD5CXgSytenphAg";
-        private const string gruppenSchnickSchnackSchnuckPinguinFileId = "BQADAgAD6wADuNXvD2NaohEJcbgLAg";
-        private const string haltMalKurzKänguruFileId = "BQADAgAD7QADuNXvD9AZy4cPVhiKAg";
-        private const string haltMalKurzKleinkünstlerFileId = "BQADAgAD7wADuNXvDyjwPV3Kw965Ag";
-        private const string haltMalKurzPinguinFileId = "BQADAgAD8QADuNXvDwRzCZZI2Yt2Ag";
+        public const string achMeinDeinKänguruFileId = "BQADAgAD4QADuNXvD7DVvOPPLJ9FAg";
+        public const string achMeinDeinKleinkünstlerFileId = "BQADAgAD4wADuNXvD0s8uqEC4GaoAg";
+        public const string achMeinDeinPinguinFileId = "BQADAgAD5QADuNXvD4d55YERfBxOAg";
+        public const string gruppenSchnickSchnackSchnuckKänguruFileId = "BQADAgAD5wADuNXvD92soH-U6_CdAg";
+        public const string gruppenSchnickSchnackSchnuckKleinkünstlerFileId = "BQADAgAD6QADuNXvD5CXgSytenphAg";
+        public const string gruppenSchnickSchnackSchnuckPinguinFileId = "BQADAgAD6wADuNXvD2NaohEJcbgLAg";
+        public const string haltMalKurzKänguruFileId = "BQADAgAD7QADuNXvD9AZy4cPVhiKAg";
+        public const string haltMalKurzKleinkünstlerFileId = "BQADAgAD7wADuNXvDyjwPV3Kw965Ag";
+        public const string haltMalKurzPinguinFileId = "BQADAgAD8QADuNXvDwRzCZZI2Yt2Ag";
+        public const string kapitalismusKänguruFileId = "BQADAgAD8wADuNXvD0AfzlnAnDcBAg";
+        public const string kapitalismusKleinkünstlerFileId = "BQADAgAD9QADuNXvD0ThX6to2JdqAg";
+        public const string kapitalismusPinguinFileId = "BQADAgAD9wADuNXvDzw_kIVSZQ1TAg";
+        public const string kommunismusFileId = "BQADAgAD-QADuNXvDybdi8lkuQZQAg";
+        public const string naziKänguruFileId = "BQADAgAD-wADuNXvD3Q3fLfoyHO8Ag";
+        public const string naziKleinkünstlerFileId = "BQADAgAD_QADuNXvD3ZMEwHbIey6Ag";
+        public const string naziPinguinFileId = "BQADAgAD_wADuNXvD95PjnX34SFmAg";
+        public const string notToDoListeKänguruFileId = "BQADAgADAQEAArjV7w9TBJCNyVVwugI";
+        public const string notToDoListeKleinkünstlerFileId = "BQADAgADAwEAArjV7w_9XHpoMREvtQI";
+        public const string notToDoListePinguinFileId = "BQADAgADBQEAArjV7w-TOOnmjYoSgAI";
+        public const string polizeiKänguruFileId = "BQADAgADBwEAArjV7w8jLlfop-K6DgI";
+        public const string polizeiKleinkünstlerFileId = "BQADAgADCQEAArjV7w9Bmy1WHQlbLQI";
+        public const string polizeiPinguinFileId = "BQADAgADCwEAArjV7w8_OvK8YGuSKgI";
+        public const string razupaltuffFileId = "BQADAgADDQEAArjV7w9c3w18rW2kIgI";
+        public const string schnickSchnackSchnuckKänguruFileId = "BQADAgADDwEAArjV7w9XEYFbZCvsxwI";
+        public const string schnickSchnackSchnuckKleinkünstlerFileId = "BQADAgADEQEAArjV7w_BxM73LDagLgI";
+        public const string schnickSchnackSchnuckPinguinFileId = "BQADAgADEwEAArjV7w_IHY6ObhVJqgI";
+        public const string vollversammlungKänguruFileId = "BQADAgADFQEAArjV7w-xyus4DoA1tgI";
+        public const string vollversammlungKleinkünstlerFileId = "BQADAgADFwEAArjV7w_UmAHHSysVCAI";
+        public const string vollversammlungPinguinFileId = "BQADAgADGQEAArjV7w-ZcGk7g_ZyTQI";
         #endregion
         public const string emoji_witzig = "😂";
         public const string emoji_nichtwitzig = "😐";
@@ -172,6 +192,7 @@ namespace HaltMalKurzBot
         {
             this.pile = pile;
             init();
+            shuffle();
         }
         #endregion
 
@@ -347,13 +368,13 @@ namespace HaltMalKurzBot
         #endregion
 
         #region Methods
-        private void addCard(Card card)
+        public void addCard(Card card)
         {
             Cards.Add(card);
             shuffle();
         }
 
-        private void shuffle()
+        public void shuffle()
         {
             if (Cards.Count < 1)
             {
@@ -378,7 +399,7 @@ namespace HaltMalKurzBot
             }
         }
 
-        private Card drawCard()
+        public Card drawCard()
         {
             if (Cards.Count < 1)
             {
@@ -467,10 +488,32 @@ namespace HaltMalKurzBot
         public bool IsRunning { get { return running; } }
         private int turn;
         public Player TurnPlayer { get { return (Player) Players[turn]; } }
+        public CardStack Stack { get; }
+        public CardPile Pile { get; }
+        private Thread threadGame;
         public Game()
         {
             running = false;
-            throw new NotImplementedException();    //Not implemented
+            ArrayList gi = Program.GameIds;
+            int c = gi.Count;
+            bool hasId = false;
+            for (int i = 0; i <= c && !hasId; i++)
+            {
+                if (!gi.Contains(i))
+                {
+                    Id = i;
+                    hasId = true;
+                }
+            }
+            Program.GameIds.Add(Id);
+            threadGame = new Thread(gameThread);
+            threadGame.Start();
+            throw new NotImplementedException();    //Not fully implemented
+        }
+
+        ~Game()
+        {
+            Program.GameIds.Remove(Id);
         }
 
         public bool addPlayer(Player p)
@@ -485,17 +528,43 @@ namespace HaltMalKurzBot
 
         public void start()
         {
-            throw new NotImplementedException(); //Not Implemented
+            int c = 10 - Players.Count;
+            foreach (Player p in Players)
+            {
+                dealCards(player: p, count: c);
+            }
+            throw new NotImplementedException(); //Not fully Implemented
+        }
+
+        private void dealCards(Player player, int count)
+        {
+            player.Hand = new CardHand();
+            for (int i = 0; i < count; i++)
+            {
+                player.Hand.addCard(Stack.drawCard());
+            }
+            throw new NotImplementedException();    //Not fully Implemented
         }
 
         public void stop()
         {
-            throw new NotImplementedException(); //Not Implemented
+            threadGame.Abort();
+            running = false;
+            throw new NotImplementedException(); //Not fully Implemented
         }
 
         public void gameThread()
         {
+            ThreadExceptionEventHandler exceptionHandler = new ThreadExceptionEventHandler(threadExceptionHandler);
             throw new NotImplementedException();    //Not Implemented
+        }
+
+        public void threadExceptionHandler(object sender, ThreadExceptionEventArgs args)
+        {
+            if (args.Exception is ThreadAbortException)
+            {
+                throw new NotImplementedException();    //Not Implemented
+            }
         }
     }
     #endregion
@@ -509,6 +578,7 @@ namespace HaltMalKurzBot
         public User User { get; }
         public string FirstName { get; }
         public string FullName { get; }
+        public CardHand Hand { get; set; }
         public Player(User u)
         {
             User = u;
