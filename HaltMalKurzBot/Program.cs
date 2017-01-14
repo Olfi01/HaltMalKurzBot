@@ -68,6 +68,7 @@ namespace HaltMalKurzBot
         static void Main(string[] args)
         {
             //Not implemented
+            //Try programming a console infterface later (?)
         }
         #endregion
 
