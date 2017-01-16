@@ -274,6 +274,27 @@ namespace HaltMalKurzBot
             return DecodeRaw<Message>(resStream).Ok;
         }
 
+        public static Message sendAndReturnMessage(string txt, long chatid, Message replyto = null, string parsemode = null, InlineKeyboardMarkup inlineMarkup = null)
+        {
+            string append = "sendMessage?text=" + txt + "&chat_id=" + chatid.ToString();
+            if (replyto != null)
+            {
+                append += "&reply_to_message_id=" + replyto.MessageId;
+            }
+            if (parsemode != null)
+            {
+                append += "&parse_mode=" + parsemode;
+            }
+            if (inlineMarkup != null)
+            {
+                append += "&reply_markup=" + JsonConvert.SerializeObject(inlineMarkup);
+            }
+            HttpWebRequest request = (HttpWebRequest)WebRequest.Create(url + append);
+            HttpWebResponse response = (HttpWebResponse)request.GetResponse();
+            Stream resStream = response.GetResponseStream();
+            return Decode<Message>(resStream);
+        }
+
         private static T Decode<T>(Stream str)
         {
             var serializer = new JsonSerializer();
@@ -1062,8 +1083,8 @@ namespace HaltMalKurzBot
             InlineKeyboardButton[] bs = { b2 };
             buttons[i] = bs;
             InlineKeyboardMarkup im = new InlineKeyboardMarkup(buttons);
-            Program.sendMessage(txt: "Wähle eine Karte.", chatid: Id, inlineMarkup: im);
-            waitForCallback(30);
+            Message msg = Program.sendAndReturnMessage(txt: "Wähle eine Karte.", chatid: Id, inlineMarkup: im);
+            waitForCallback(msg, 30);
             string[] args = CalledBackData;
             CalledBackData = null;
             if (args[0] == "Timeout")
@@ -1091,7 +1112,7 @@ namespace HaltMalKurzBot
             }
         }
 
-        public void waitForCallback(int timeInSeconds = 30, Message msg)
+        public void waitForCallback(Message msg, int timeInSeconds = 30)
         {
             for (int i = 0; i < timeInSeconds*2; i++)
             {
@@ -1120,8 +1141,8 @@ namespace HaltMalKurzBot
                 players[i] = ba;
             }
             InlineKeyboardMarkup im = new InlineKeyboardMarkup(players);
-            Program.sendMessage(txt: msg, chatid: Id, inlineMarkup: im);
-            waitForCallback(30);
+            Message massage = Program.sendAndReturnMessage(txt: msg, chatid: Id, inlineMarkup: im);
+            waitForCallback(massage, 30);
             string[] args = CalledBackData;
             CalledBackData = null;
             if (args[0] == "Timeout")
@@ -1174,8 +1195,9 @@ namespace HaltMalKurzBot
             InlineKeyboardButton[] bs = { b2 };
             buttons[i] = bs;
             InlineKeyboardMarkup im = new InlineKeyboardMarkup(buttons);
-            Program.sendMessage(txt: "Willst du eine Not-To-Do-Liste einsetzen?\nWenn ja, welche?", chatid: Id, inlineMarkup: im);
-            waitForCallback(10);
+            Message msg = Program.sendAndReturnMessage(txt: "Willst du eine Not-To-Do-Liste einsetzen?\nWenn ja, welche?", 
+                chatid: Id, inlineMarkup: im);
+            waitForCallback(msg, 10);
             string[] args = CalledBackData;
             CalledBackData = null;
             if (args[0] == "Timeout")
