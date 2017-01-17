@@ -66,9 +66,11 @@ namespace HaltMalKurzBot
         public static ArrayList gameIds = new ArrayList();
         public static ArrayList games = new ArrayList();
         public static ArrayList groups = new ArrayList();
+        private static ArrayList callbacks = new ArrayList();
         public static int lastUpdate;
         public static int newUpdate;
         private static Thread t;
+        private static Thread t2;
         #endregion
         #region Main Method
         static void Main(string[] args)
@@ -83,10 +85,13 @@ namespace HaltMalKurzBot
                     case "startbot":
                         t = new Thread(updateThread);
                         t.Start();
+                        t2 = new Thread(handleCallbacks);
+                        t2.Start();
                         Console.WriteLine("Bot started");
                         break;
                     case "stopbot":
                         t.Abort();
+                        t2.Abort();
                         Console.WriteLine("Bot stopped");
                         break;
                     case "help":
@@ -123,6 +128,19 @@ namespace HaltMalKurzBot
         #endregion
 
         #region Methods
+        #region Random Methods
+        private static void handleCallbacks()
+        {
+            while (true)
+            {
+                foreach (CallbackQuery q in callbacks)
+                {
+                    answerCallbackQuery(q);
+                }
+                Thread.Sleep(500);
+            }
+        }
+
         private static void updateThread()
         {
             while (true)
@@ -153,12 +171,20 @@ namespace HaltMalKurzBot
                     }
                     if (u.CallbackQuery != null)    //If the update is a callback query
                     {
+                        callbacks.Add(u.CallbackQuery);
                         string[] args = u.CallbackQuery.Data.Split(',');
                         foreach (Game g in games)
                         {
                             if (args[0] == g.Group.Id.ToString())
                             {
-                                g.CalledBackData = args;
+                                if (args[1] == "multiple")
+                                {
+                                    g.AllCalledBackData.Add(args);
+                                }
+                                else
+                                {
+                                    g.CalledBackData = args;
+                                }
                             }
                         }
                     }
@@ -191,6 +217,8 @@ namespace HaltMalKurzBot
                             g.addPlayer(new Player(msg.From), msg);
                             games.Add(g);
                             groups.Add(msg.Chat);
+                            Program.sendMessage(txt: "Spiel wurde gestartet. Nutzt /join um beizutreten und /go um das Spiel zu beginnen.",
+                                chatid: msg.Chat.Id, replyto: msg);
                         }
                     }
                     break;
@@ -212,11 +240,37 @@ namespace HaltMalKurzBot
                             chatid: msg.Chat.Id, replyto: msg);
                     }
                     break;
+                case "/go":
+                case "/go" + botUsername:
+                    bool fGame = false;
+                    foreach (Game g in games)
+                    {
+                        if (g.Group == msg.Chat)
+                        {
+                            if (3 <= g.Players.Count)
+                            {
+                                g.start();
+                            }
+                            else
+                            {
+                                sendMessage(txt: "Es sind noch nicht genügend Spieler im Spiel, mindestens drei müssen es sein.",
+                                    chatid: msg.Chat.Id, replyto: msg);
+                            }
+                            fGame = true;
+                            break;
+                        }
+                    }
+                    if (!fGame)
+                    {
+                        sendMessage(txt: "Es läft gerade kein Spiel. Starte ein neues Spiel mit /startgame",
+                            chatid: msg.Chat.Id, replyto: msg);
+                    }
+                    break;
                 default:
                     break;
             }
         }
-
+        #endregion
         #region Api Methods
         private static Stream getUpdates()
         {
@@ -231,6 +285,17 @@ namespace HaltMalKurzBot
             Stream resStream = response.GetResponseStream();
             return resStream;
         }
+
+        public static bool answerCallbackQuery(CallbackQuery q)
+        {
+            editMessageReplyMarkup(chatid: q.Message.Chat.Id, messageid: q.Message.MessageId, inlineMarkup: null);
+            string append = "answerCallbackQuery?callback_query_id=" + q.Id;
+            HttpWebRequest request = (HttpWebRequest)WebRequest.Create(url + append);
+            HttpWebResponse response = (HttpWebResponse)request.GetResponse();
+            Stream resStream = response.GetResponseStream();
+            return DecodeRaw<bool>(resStream).Ok;
+        }
+
         public static bool sendFile(string file_id, string type, long chatid, Message replyto = null)
         {
             string append = "";
@@ -295,6 +360,16 @@ namespace HaltMalKurzBot
             return Decode<Message>(resStream);
         }
 
+        public static bool sendSticker(long chatid, string sticker)
+        {
+            string append = "sendSticker?chat_id=" + chatid;
+            append += "&sticker=" + sticker;
+            HttpWebRequest request = (HttpWebRequest)WebRequest.Create(url + append);
+            HttpWebResponse response = (HttpWebResponse)request.GetResponse();
+            Stream resStream = response.GetResponseStream();
+            return DecodeRaw<Message>(resStream).Ok;
+        }
+
         private static T Decode<T>(Stream str)
         {
             var serializer = new JsonSerializer();
@@ -316,15 +391,45 @@ namespace HaltMalKurzBot
             }
         }
 
-        public static bool editMessageReplyMarkup(long chatid, int messageid, object inlineMarkup)
+        public static bool editMessageReplyMarkup(long chatid, int messageid, InlineKeyboardMarkup inlineMarkup)
         {
             string append = "editMessageReplyMarkup?chat_id=" + chatid.ToString();
             append += "&reply_markup=" + JsonConvert.SerializeObject(inlineMarkup);
-            append += "&messag_id=" + messageid;
+            append += "&message_id=" + messageid;
             HttpWebRequest request = (HttpWebRequest)WebRequest.Create(url + append);
             HttpWebResponse response = (HttpWebResponse)request.GetResponse();
             Stream resStream = response.GetResponseStream();
             return DecodeRaw<Message>(resStream).Ok;
+        }
+
+        public static bool editMessage(long chatid, int messageid, string txt, InlineKeyboardMarkup inlineMarkup = null)
+        {
+            string append = "editMessageText?chat_id=" + chatid.ToString();
+            append += "&message_id=" + messageid;
+            append += "&text=" + txt;
+            if (inlineMarkup != null)
+            {
+                append += "&reply_markup=" + JsonConvert.SerializeObject(inlineMarkup);
+            }
+            HttpWebRequest request = (HttpWebRequest)WebRequest.Create(url + append);
+            HttpWebResponse response = (HttpWebResponse)request.GetResponse();
+            Stream resStream = response.GetResponseStream();
+            return DecodeRaw<Message>(resStream).Ok;
+        }
+
+        public static Message editAndReturnMessage(long chatid, int messageid, string txt, InlineKeyboardMarkup inlineMarkup = null)
+        {
+            string append = "editMessageText?chat_id=" + chatid.ToString();
+            append += "&message_id=" + messageid;
+            append += "&text=" + txt;
+            if (inlineMarkup != null)
+            {
+                append += "&reply_markup=" + JsonConvert.SerializeObject(inlineMarkup);
+            }
+            HttpWebRequest request = (HttpWebRequest)WebRequest.Create(url + append);
+            HttpWebResponse response = (HttpWebResponse)request.GetResponse();
+            Stream resStream = response.GetResponseStream();
+            return Decode<Message>(resStream);
         }
         #endregion
         #endregion
@@ -738,6 +843,7 @@ namespace HaltMalKurzBot
 
     class Game
     {
+        #region Variables
         public int Id { get; }
         public ArrayList Players { get; }
         private ArrayList allPlayers { get; set; }
@@ -751,6 +857,11 @@ namespace HaltMalKurzBot
         private Thread threadGame;
         public string[] CalledBackData { get; set; }
         public int MaxRankWon { get; set; }
+        public int Runde { get; set; }
+        public ArrayList AllCalledBackData { get; set; }
+        private Random rnd = new Random();
+        #endregion
+        #region Constructor
         public Game(Chat group)
         {
             running = false;
@@ -770,15 +881,18 @@ namespace HaltMalKurzBot
             Program.gameIds.Add(Id);
             threadGame = new Thread(gameThread);
             MaxRankWon = 0;
+            Runde = 1;
         }
-
+        #endregion
+        #region Destructor
         ~Game()
         {
             Program.gameIds.Remove(Id);
             Program.games.Remove(this);
             Program.groups.Remove(Group);
         }
-
+        #endregion
+        #region Method Stuff
         public bool addPlayer(Player p, Message m)
         {
             if (!running)
@@ -788,6 +902,10 @@ namespace HaltMalKurzBot
                     Players.Add(p);
                     p.Group = Group;
                     p.GameIn = this;
+                    if (Players.Count == 5)
+                    {
+                        start();
+                    }
                     return true;
                 }
                 else
@@ -810,6 +928,7 @@ namespace HaltMalKurzBot
 
         public void start()
         {
+            running = true;
             int c = 10 - Players.Count;
             allPlayers = Players;
             foreach (Player p in Players)
@@ -839,7 +958,57 @@ namespace HaltMalKurzBot
             Program.groups.Remove(Group);
             //show results
         }
+        private void waitForCallback(Message msg, int timeInSeconds = 30)
+        {
+            for (int i = 0; i < timeInSeconds * 2; i++)
+            {
+                //Wait for callback
+                if (CalledBackData != null)
+                {
+                    return;
+                }
+                Thread.Sleep(500);
+                string[] s = { "Timeout" };
+                CalledBackData = s;
+            }
+        }
 
+        private void checkRoutine()
+        {
+            turn++;
+            if (turn >= Players.Count)
+            {
+                turn = 0;
+            }
+            foreach (Player p in Players)
+            {
+                if (p.Hand.CardCount < 1)
+                {
+                    Program.sendMessage(txt: p.FullName + " ist fertig!", chatid: Group.Id);
+                    p.RankWon = ++MaxRankWon;
+                    removePlayer(p);
+                }
+            }
+            if (Players.Count < 2)
+            {
+                stop();
+            }
+            string msg = "Spieler-Übersicht:";
+            foreach (Player p in Players)
+            {
+                msg += "\n" + p.FullName + " (" + p.Hand.CardCount + " Karten";
+            }
+            Program.sendMessage(txt: msg, chatid: Group.Id);
+            Runde++;
+        }
+
+        public void removePlayer(Player p)
+        {
+            Players.Remove(p);
+            Program.sendMessage(txt: p.FullName + " hat das Spiel verlassen", chatid: Group.Id);
+        }
+        #endregion
+        #region Game Thread
         public void gameThread()
         {
             Pile.addCard(Stack.drawCard());
@@ -848,6 +1017,11 @@ namespace HaltMalKurzBot
             while (running)
             {
                 Player turnPlayer = TurnPlayer;
+                ArrayList messages = new ArrayList();
+                foreach (Player p in Players)
+                {
+                    messages.Add(Program.sendAndReturnMessage(txt: "Runde " + Runde, chatid: p.Id));
+                }
                 #region Card Selection
                 ArrayList possibleCards = new ArrayList();
                 Program.sendMessage(txt: turnPlayer.FullName + " wählt eine Karte...\nEr hat dreißig Sekunden Zeit",
@@ -880,13 +1054,25 @@ namespace HaltMalKurzBot
                 #region Play Card
                 else
                 {
+                    turnPlayer.Hand.takeCard(selectedCard);
+                    Pile.addCard(selectedCard);
                     //play Card
                     switch (selectedCard.TypeId)
                     {
                         #region Ach, mein, dein...
                         case Type.RawIdAchMeinDein:
-                            turnPlayer.Hand.takeCard(selectedCard);
-                            Pile.addCard(selectedCard);
+                            switch (selectedCard.SymbolId)
+                            {
+                                case Symbol.RawIdKleinkünstler:
+                                    Program.sendSticker(chatid: Group.Id, sticker: Program.achMeinDeinKleinkünstlerFileId);
+                                    break;
+                                case Symbol.RawIdKänguru:
+                                    Program.sendSticker(chatid: Group.Id, sticker: Program.achMeinDeinKänguruFileId);
+                                    break;
+                                case Symbol.RawIdPinguin:
+                                    Program.sendSticker(chatid: Group.Id, sticker: Program.achMeinDeinPinguinFileId);
+                                    break;
+                            }
                             Program.sendMessage(txt: "*" + turnPlayer.FullName + ":* Ach, mein, dein... das sind doch bürgerliche Kategorien.",
                                 chatid: Group.Id, parsemode: "Markdown");
                             Player selectedPlayer = turnPlayer.selectPlayer(list: Players, 
@@ -936,17 +1122,289 @@ namespace HaltMalKurzBot
                         #endregion
                         #region Gruppen-Schnick-Schnack-Schnuck
                         case Type.RawIdGruppenSchnickSchnackSchnuck:
-
+                            switch (selectedCard.SymbolId)
+                            {
+                                case Symbol.RawIdKleinkünstler:
+                                    Program.sendSticker(chatid: Group.Id, sticker: Program.gruppenSchnickSchnackSchnuckKleinkünstlerFileId);
+                                    break;
+                                case Symbol.RawIdKänguru:
+                                    Program.sendSticker(chatid: Group.Id, sticker: Program.gruppenSchnickSchnackSchnuckKänguruFileId);
+                                    break;
+                                case Symbol.RawIdPinguin:
+                                    Program.sendSticker(chatid: Group.Id, sticker: Program.gruppenSchnickSchnackSchnuckPinguinFileId);
+                                    break;
+                            }
+                            Program.sendMessage(txt: "*" + turnPlayer.FullName + ":* Gruppen-Schnick!", chatid: Group.Id, 
+                                parsemode: "Markdown");
+                            Message msg = null;
+                            foreach (Message m in messages)
+                            {
+                                InlineKeyboardButton button = new InlineKeyboardButton("Ohne Brunnen!", Group.Id + ",ohnebrunnen," 
+                                    + m.Chat.FirstName + " " + m.Chat.LastName);
+                                InlineKeyboardButton[] buttons = { button };
+                                InlineKeyboardMarkup im = new InlineKeyboardMarkup(buttons);
+                                msg = Program.editAndReturnMessage(chatid: m.Chat.Id, messageid: m.MessageId, txt: "Ohne Brunnen?",
+                                    inlineMarkup: im);
+                            }
+                            waitForCallback(msg, 10);
+                            string[] args = CalledBackData;
+                            CalledBackData = null;
+                            bool ohneBrunnen = false;
+                            if (!(args[0] == "Timeout") && args[1] == "ohnebrunnen")
+                            {
+                                Program.sendMessage(txt: "*" + args[2] + ":* Ohne Brunnen!", chatid: Group.Id, parsemode: "Markdown");
+                                ohneBrunnen = true;
+                            }
+                            messages = null;
+                            foreach (Player p in Players)
+                            {
+                                InlineKeyboardButton b1 = new InlineKeyboardButton("Schere", Group.Id + ",schere," + p.Id);
+                                InlineKeyboardButton[] bs1 = { b1 };
+                                InlineKeyboardButton b2 = new InlineKeyboardButton("Stein", Group.Id + ",stein," + p.Id);
+                                InlineKeyboardButton[] bs2 = { b2 };
+                                InlineKeyboardButton b3 = new InlineKeyboardButton("Papier", Group.Id + ",papier," + p.Id);
+                                InlineKeyboardButton[] bs3 = { b3 };
+                                InlineKeyboardMarkup im;
+                                if (!ohneBrunnen)
+                                {
+                                    InlineKeyboardButton b4 = new InlineKeyboardButton("Brunnen", Group.Id + ",brunnen," + p.Id);
+                                    InlineKeyboardButton[] bs4 = { b4 };
+                                    InlineKeyboardButton[][] buttons = { bs1, bs2, bs3, bs4 };
+                                    im = new InlineKeyboardMarkup(buttons);
+                                }
+                                else
+                                {
+                                    InlineKeyboardButton[][] buttons = { bs1, bs2, bs3 };
+                                    im = new InlineKeyboardMarkup(buttons);
+                                }
+                                messages.Add(Program.sendAndReturnMessage(txt: "Schere, Stein oder Papier?", chatid: p.Id, inlineMarkup: im));
+                            }
+                            Thread.Sleep(15 * 1000);
+                            ArrayList argsList = AllCalledBackData;
+                            AllCalledBackData = null;
+                            //handle those arguments, determine winners and losers and so on... sigh
+                            string[] turnPlayerArgs = null;
+                            foreach (string[] s in argsList)
+                            {
+                                if (s[2] == turnPlayer.Id.ToString())
+                                {
+                                    turnPlayerArgs = s;
+                                    argsList.Remove(s);
+                                }
+                            }
+                            ArrayList playerIdsWonAgainst = new ArrayList();
+                            ArrayList playerIdsLostAgainst = new ArrayList();
+                            switch (turnPlayerArgs[1])
+                            {
+                                case "schere":
+                                    Program.sendMessage(txt: "*" + turnPlayer.FullName + ":* Schere!", chatid: Group.Id, 
+                                        parsemode: "Markdown");
+                                    foreach (string[] arg2 in argsList)
+                                    {
+                                        switch (arg2[1])
+                                        {
+                                            case "schere":
+                                                break;
+                                            case "stein":
+                                                playerIdsLostAgainst.Add(arg2[2]);  //still string
+                                                break;
+                                            case "papier":
+                                                playerIdsWonAgainst.Add(arg2[2]);
+                                                break;
+                                            case "brunnen":
+                                                playerIdsLostAgainst.Add(arg2[2]);
+                                                break;
+                                        }
+                                    }
+                                    break;
+                                case "stein":
+                                    foreach (string[] arg2 in argsList)
+                                    {
+                                        switch (arg2[1])
+                                        {
+                                            case "schere":
+                                                playerIdsWonAgainst.Add(arg2[2]);
+                                                break;
+                                            case "stein":
+                                                break;
+                                            case "papier":
+                                                playerIdsLostAgainst.Add(arg2[2]);
+                                                break;
+                                            case "brunnen":
+                                                playerIdsLostAgainst.Add(arg2[2]);
+                                                break;
+                                        }
+                                    }
+                                    break;
+                                case "papier":
+                                    foreach (string[] arg2 in argsList)
+                                    {
+                                        switch (arg2[1])
+                                        {
+                                            case "schere":
+                                                playerIdsLostAgainst.Add(arg2[2]);
+                                                break;
+                                            case "stein":
+                                                playerIdsWonAgainst.Add(arg2[2]);
+                                                break;
+                                            case "papier":
+                                                break;
+                                            case "brunnen":
+                                                playerIdsWonAgainst.Add(arg2[2]);
+                                                break;
+                                        }
+                                    }
+                                    break;
+                                case "brunnen":
+                                    foreach (string[] arg2 in argsList)
+                                    {
+                                        switch (arg2[1])
+                                        {
+                                            case "schere":
+                                                playerIdsWonAgainst.Add(arg2[2]);
+                                                break;
+                                            case "stein":
+                                                playerIdsWonAgainst.Add(arg2[2]);
+                                                break;
+                                            case "papier":
+                                                playerIdsLostAgainst.Add(arg2[2]);
+                                                break;
+                                            case "brunnen":
+                                                break;
+                                        }
+                                    }
+                                    break;
+                            }
+                            foreach (string s in playerIdsLostAgainst)
+                            {
+                                foreach (Player p in Players)
+                                {
+                                    if (p.Id.ToString() == s)
+                                    {
+                                        Program.sendMessage(txt: turnPlayer.FullName + " hat gegen " + p.FullName +
+                                            " verloren und erhält daher eine Karte von ihm / ihr.", chatid: Group.Id);
+                                        Card c = p.selectCardNoDraw(p.Hand.Cards, "Wähle eine Karte, die du " + turnPlayer.FullName
+                                            + " geben willst.", 10);
+                                        if (c == null)
+                                        {
+                                            Program.sendMessage(txt: p.FullName + " hat es wohl verpasst, eine Karte zu wählen...\n"
+                                                + "Pech gehabt!", chatid: Group.Id);
+                                        }
+                                        else
+                                        {
+                                            p.Hand.takeCard(c);
+                                            turnPlayer.Hand.addCard(c);
+                                            p.tellCards();
+                                            turnPlayer.tellCards();
+                                        }
+                                    }
+                                }
+                            }
+                            foreach (string s in playerIdsWonAgainst)
+                            {
+                                foreach (Player p in Players)
+                                {
+                                    if (p.Id.ToString() == s)
+                                    {
+                                        Program.sendMessage(txt: turnPlayer.FullName + " hat gegen " + p.FullName +
+                                            " gewonnen und darf ihm / ihr eine Karte geben.", chatid: Group.Id);
+                                        Card c = turnPlayer.selectCardNoDraw(turnPlayer.Hand.Cards, "Wähle eine Karte, die du " + p.FullName
+                                            + " geben willst.", 10);
+                                        if (c == null)
+                                        {
+                                            Program.sendMessage(txt: turnPlayer.FullName + " hat es wohl verpasst, eine Karte zu wählen...\n"
+                                                + "Pech gehabt!", chatid: Group.Id);
+                                        }
+                                        else
+                                        {
+                                            turnPlayer.Hand.takeCard(c);
+                                            p.Hand.addCard(c);
+                                            p.tellCards();
+                                            turnPlayer.tellCards();
+                                        }
+                                    }
+                                }
+                            }
                             break;
                         #endregion
                         #region Halt mal kurz
                         case Type.RawIdHaltMalKurz:
-
+                            switch (selectedCard.SymbolId)
+                            {
+                                case Symbol.RawIdKleinkünstler:
+                                    Program.sendSticker(chatid: Group.Id, sticker: Program.haltMalKurzKleinkünstlerFileId);
+                                    break;
+                                case Symbol.RawIdKänguru:
+                                    Program.sendSticker(chatid: Group.Id, sticker: Program.haltMalKurzKänguruFileId);
+                                    break;
+                                case Symbol.RawIdPinguin:
+                                    Program.sendSticker(chatid: Group.Id, sticker: Program.haltMalKurzPinguinFileId);
+                                    break;
+                            }
+                            Program.sendMessage(txt: "*" + turnPlayer.FullName + ":* Halt mal kurz!", chatid: Group.Id);
+                            ArrayList selection = Players;
+                            selection.Remove(turnPlayer);
+                            Player sp = turnPlayer.selectPlayer(selection, "Wähle einen Spieler, der "
+                                + "mal kurz deine Karten halten soll.");
+                            if (sp == null)
+                            {
+                                Program.sendMessage(txt: "Sieht so aus, als hätte " + turnPlayer.FullName + " keine Karte ausgewählt!",
+                                    chatid: Group.Id);
+                                turn--;
+                                removePlayer(turnPlayer);
+                                checkRoutine();
+                                continue;
+                            }
+                            Program.sendMessage(txt: "*" + turnPlayer.FullName + ":* Halt mal kurz, " + sp.FullName + "!",
+                                chatid: Group.Id, parsemode: "Markdown");
+                            ArrayList cardsToGive = new ArrayList();
+                            int cc = turnPlayer.Hand.CardCount;
+                            for (int i = 0; i < cc/2; i++)
+                            {
+                                Card c = (Card) turnPlayer.Hand.Cards[rnd.Next(cc)];
+                                cardsToGive.Add(turnPlayer.Hand.takeCard(c));
+                            }
+                            foreach (Card c in cardsToGive)
+                            {
+                                sp.Hand.addCard(c);
+                            }
+                            sp.tellCards();
+                            turnPlayer.tellCards();
                             break;
                         #endregion
                         #region Kapitalismus
                         case Type.RawIdKapitalismus:
-
+                            switch (selectedCard.SymbolId)
+                            {
+                                case Symbol.RawIdKleinkünstler:
+                                    Program.sendSticker(chatid: Group.Id, sticker: Program.kapitalismusKleinkünstlerFileId);
+                                    break;
+                                case Symbol.RawIdKänguru:
+                                    Program.sendSticker(chatid: Group.Id, sticker: Program.kapitalismusKänguruFileId);
+                                    break;
+                                case Symbol.RawIdPinguin:
+                                    Program.sendSticker(chatid: Group.Id, sticker: Program.kapitalismusPinguinFileId);
+                                    break;
+                            }
+                            Program.sendMessage(txt: "*" + turnPlayer.FullName + ":* Wer hat, dem wird gegeben!", chatid: Group.Id,
+                                parsemode: "Markdown");
+                            int maxCards = 0;
+                            foreach (Player p in Players)
+                            {
+                                if (p.Hand.CardCount > maxCards)
+                                {
+                                    maxCards = p.Hand.CardCount;
+                                }
+                            }
+                            foreach (Player p in Players)
+                            {
+                                if (p.Hand.CardCount == maxCards)
+                                {
+                                    Program.sendMessage(txt: p.FullName + " muss zwei Karten ziehen!", chatid: Group.Id);
+                                    p.drawCard(Stack);
+                                    p.drawCard(Stack);
+                                }
+                            }
                             break;
                         #endregion
                         #region Kommunismus
@@ -986,40 +1444,7 @@ namespace HaltMalKurzBot
                 //Not implemented
             }
         }
-
-        private void checkRoutine()
-        {
-            turn++;
-            if (turn >= Players.Count)
-            {
-                turn = 0;
-            }
-            foreach (Player p in Players)
-            {
-                if (p.Hand.CardCount < 1)
-                {
-                    Program.sendMessage(txt: p.FullName + " ist fertig!", chatid: Group.Id);
-                    p.RankWon = ++MaxRankWon;
-                    removePlayer(p);
-                }
-            }
-            if (Players.Count < 2)
-            {
-                stop();
-            }
-            string msg = "Spieler-Übersicht:";
-            foreach (Player p in Players)
-            {
-                msg += "\n" + p.FullName + " (" + p.Hand.CardCount + " Karten";
-            }
-            Program.sendMessage(txt: msg, chatid: Group.Id);
-        }
-
-        public void removePlayer(Player p)
-        {
-            Players.Remove(p);
-            Program.sendMessage(txt: p.FullName + " hat das Spiel verlassen", chatid: Group.Id);
-        }
+        #endregion
     }
     #endregion
 
@@ -1036,6 +1461,7 @@ namespace HaltMalKurzBot
         public Game GameIn { get; set; }
         private string[] CalledBackData { get; set; }
         public int RankWon { get; set; }
+        private int RazupaltuffCount { get; set; }
         public Player(User u)
         {
             User = u;
@@ -1046,17 +1472,28 @@ namespace HaltMalKurzBot
             {
                 FullName += " " + u.LastName;
             }
+            RazupaltuffCount = 0;
         }
 
         #region Methods
         public void tellCards()
         {
             string message = "Deine Karten sind:";
+            int razupaltuffsSeen = 0;
             foreach (Card c in Hand.Cards)
             {
                 message += "\n" + c.ColorEmoji + c.SymbolEmoji + " " + c.TypeName;
+                if (c.TypeId == Type.IdRazupaltuff && razupaltuffsSeen >= RazupaltuffCount)
+                {
+                    Program.sendMessage(txt: "*" + FullName + ":* _Razupaltuff!_", chatid: Group.Id, parsemode: "Markdown");
+                    razupaltuffsSeen++;
+                    RazupaltuffCount++;
+                }
+                else if (c.TypeId == Type.IdRazupaltuff)
+                {
+                    razupaltuffsSeen++;
+                }
             }
-            throw new NotImplementedException();
         }
 
         public void drawCard(CardStack cs)
@@ -1112,6 +1549,40 @@ namespace HaltMalKurzBot
             }
         }
 
+        public Card selectCardNoDraw(ArrayList selection, string txt, int timeout = 30)
+        {
+            InlineKeyboardButton[][] buttons = new InlineKeyboardButton[selection.Count][];
+            int i = 0;
+            foreach (Card c in selection)
+            {
+                InlineKeyboardButton b = new InlineKeyboardButton(c.ColorEmoji + c.SymbolEmoji + " " + c.TypeName);
+                b.CallbackData = Group.Id + "," + c.ColorId + "," + c.SymbolId + "," + c.TypeName;
+                InlineKeyboardButton[] ba = { b };
+                buttons[i] = ba;
+                i++;
+            }
+            InlineKeyboardMarkup im = new InlineKeyboardMarkup(buttons);
+            Message msg = Program.sendAndReturnMessage(txt: txt, chatid: Id, inlineMarkup: im);
+            waitForCallback(msg, timeout);
+            string[] args = CalledBackData;
+            CalledBackData = null;
+            if (args[0] == "Timeout")
+            {
+                return null;
+            }
+            else
+            {
+                foreach (Card c in Hand.Cards)
+                {
+                    if (c.ColorId.ToString() == args[1] && c.SymbolId.ToString() == args[2] && c.TypeId.ToString() == args[3])
+                    {
+                        return c;
+                    }
+                }
+                return null;
+            }
+        }
+
         public void waitForCallback(Message msg, int timeInSeconds = 30)
         {
             for (int i = 0; i < timeInSeconds*2; i++)
@@ -1126,7 +1597,6 @@ namespace HaltMalKurzBot
             }
             string[] s = { "Timeout" };
             CalledBackData = s;
-            Program.editMessageReplyMarkup(chatid: msg.Chat.Id, messageid: msg.MessageId, inlineMarkup: null);
         }
 
         public Player selectPlayer(ArrayList list, string msg)
