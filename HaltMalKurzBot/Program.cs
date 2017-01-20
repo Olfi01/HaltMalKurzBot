@@ -90,8 +90,8 @@ namespace HaltMalKurzBot
                         Console.WriteLine("Bot started");
                         break;
                     case "stopbot":
-                        t.Abort();
-                        t2.Abort();
+                        if (t != null) t.Abort();
+                        if (t2 != null) t2.Abort();
                         Console.WriteLine("Bot stopped");
                         break;
                     case "help":
@@ -108,6 +108,9 @@ namespace HaltMalKurzBot
                         Console.WriteLine("Beendet das gesamte Programm");
                         break;
                     case "exit":
+                        if (t != null) t.Abort();
+                        if (t2 != null) t2.Abort();
+                        Console.WriteLine("Bot stopped");
                         consoleCycle = false;
                         break;
                     case "listgames":
@@ -115,7 +118,7 @@ namespace HaltMalKurzBot
                         foreach (Game g in games)
                         {
                             Console.WriteLine("Spiel " + g.Id + ":");
-                            Console.WriteLine("In der Gruppe " + g.Group.FirstName + " " + g.Group.LastName + " (" + g.Id + ")");
+                            Console.WriteLine("In der Gruppe " + g.Group.Title + " (" + g.Id + ")");
                         }
                         Console.WriteLine("Ende der Liste");
                         break;
@@ -133,9 +136,15 @@ namespace HaltMalKurzBot
         {
             while (true)
             {
-                foreach (CallbackQuery q in callbacks)
+                ArrayList callbacksCopy = callbacks;
+                if (callbacksCopy.Count > 0)
                 {
-                    answerCallbackQuery(q);
+                    foreach (CallbackQuery q in callbacksCopy)
+                    {
+                        answerCallbackQuery(q);
+                        callbacks.Remove(q);
+                        break;
+                    }
                 }
                 Thread.Sleep(500);
             }
@@ -181,6 +190,15 @@ namespace HaltMalKurzBot
                                 {
                                     g.AllCalledBackData.Add(args);
                                 }
+                                else if (args[1] == "numbered")
+                                {
+                                    args[1] = g.AllCalledBackData.Count.ToString();
+                                    if (args[2] == "getFrom")
+                                    {
+                                        args[2] = u.CallbackQuery.From.Id.ToString();
+                                    }
+                                    g.AllCalledBackData.Add(args);
+                                }
                                 else
                                 {
                                     g.CalledBackData = args;
@@ -200,11 +218,16 @@ namespace HaltMalKurzBot
                 case "/startgame" + botUsername:
                     if (msg.Chat.Id < 0)
                     {
-                        if (groups.Contains(msg.Chat))
+                        bool contains = false;
+                        foreach (Chat c in groups)
+                        {
+                            if (c.Id == msg.Chat.Id) contains = true;
+                        }
+                        if (contains)
                         {
                             foreach (Game g in games)
                             {
-                                if (g.Group == msg.Chat)
+                                if (g.Group.Id == msg.Chat.Id)
                                 {
                                     g.addPlayer(new Player(msg.From), msg);
                                     break;
@@ -214,12 +237,16 @@ namespace HaltMalKurzBot
                         else
                         {
                             Game g = new Game(msg.Chat);
-                            g.addPlayer(new Player(msg.From), msg);
                             games.Add(g);
                             groups.Add(msg.Chat);
                             Program.sendMessage(txt: "Spiel wurde gestartet. Nutzt /join um beizutreten und /go um das Spiel zu beginnen.",
                                 chatid: msg.Chat.Id, replyto: msg);
+                            g.addPlayer(new Player(msg.From), msg);
                         }
+                    }
+                    else
+                    {
+                        sendMessage(txt: "Dieser Befehl funktioniert nur in einer Gruppe!", chatid: msg.Chat.Id, replyto: msg);
                     }
                     break;
                 case "/join":
@@ -227,7 +254,7 @@ namespace HaltMalKurzBot
                     bool foundGame = false;
                     foreach (Game g in games)
                     {
-                        if (g.Group == msg.Chat)
+                        if (g.Group.Id == msg.Chat.Id)
                         {
                             g.addPlayer(new Player(msg.From), msg);
                             foundGame = true;
@@ -245,7 +272,7 @@ namespace HaltMalKurzBot
                     bool fGame = false;
                     foreach (Game g in games)
                     {
-                        if (g.Group == msg.Chat)
+                        if (g.Group.Id == msg.Chat.Id)
                         {
                             if (3 <= g.Players.Count)
                             {
@@ -265,6 +292,14 @@ namespace HaltMalKurzBot
                         sendMessage(txt: "Es läft gerade kein Spiel. Starte ein neues Spiel mit /startgame",
                             chatid: msg.Chat.Id, replyto: msg);
                     }
+                    break;
+                case "/anleitung":
+                case "/anleitung" + botUsername:
+                    InlineKeyboardButton b = new InlineKeyboardButton("Anleitung");
+                    b.Url = "www.halt-mal-kurz.de";
+                    InlineKeyboardButton[] bs = { b };
+                    InlineKeyboardMarkup im = new InlineKeyboardMarkup(bs);
+                    sendMessage(txt: "Hier ist die Anleitung.", chatid: msg.Chat.Id, replyto: msg, inlineMarkup: im);
                     break;
                 default:
                     break;
@@ -291,9 +326,16 @@ namespace HaltMalKurzBot
             editMessageReplyMarkup(chatid: q.Message.Chat.Id, messageid: q.Message.MessageId, inlineMarkup: null);
             string append = "answerCallbackQuery?callback_query_id=" + q.Id;
             HttpWebRequest request = (HttpWebRequest)WebRequest.Create(url + append);
-            HttpWebResponse response = (HttpWebResponse)request.GetResponse();
-            Stream resStream = response.GetResponseStream();
-            return DecodeRaw<bool>(resStream).Ok;
+            try
+            {
+                HttpWebResponse response = (HttpWebResponse)request.GetResponse();
+                Stream resStream = response.GetResponseStream();
+                return DecodeRaw<bool>(resStream).Ok;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         public static bool sendFile(string file_id, string type, long chatid, Message replyto = null)
@@ -334,9 +376,17 @@ namespace HaltMalKurzBot
                 append += "&reply_markup=" + JsonConvert.SerializeObject(inlineMarkup);
             }
             HttpWebRequest request = (HttpWebRequest)WebRequest.Create(url + append);
-            HttpWebResponse response = (HttpWebResponse)request.GetResponse();
-            Stream resStream = response.GetResponseStream();
-            return DecodeRaw<Message>(resStream).Ok;
+            try
+            {
+                HttpWebResponse response = (HttpWebResponse)request.GetResponse();
+                Stream resStream = response.GetResponseStream();
+                return DecodeRaw<Message>(resStream).Ok;
+            }
+            catch (WebException e)
+            {
+                Console.WriteLine(e.Message);
+                return false;
+            }
         }
 
         public static Message sendAndReturnMessage(string txt, long chatid, Message replyto = null, string parsemode = null, InlineKeyboardMarkup inlineMarkup = null)
@@ -360,10 +410,14 @@ namespace HaltMalKurzBot
             return Decode<Message>(resStream);
         }
 
-        public static bool sendSticker(long chatid, string sticker)
+        public static bool sendSticker(long chatid, string sticker, InlineKeyboardMarkup inlineMarkup = null)
         {
             string append = "sendSticker?chat_id=" + chatid;
             append += "&sticker=" + sticker;
+            if (inlineMarkup != null)
+            {
+                append += "&reply_markup=" + JsonConvert.SerializeObject(inlineMarkup);
+            }
             HttpWebRequest request = (HttpWebRequest)WebRequest.Create(url + append);
             HttpWebResponse response = (HttpWebResponse)request.GetResponse();
             Stream resStream = response.GetResponseStream();
@@ -394,7 +448,10 @@ namespace HaltMalKurzBot
         public static bool editMessageReplyMarkup(long chatid, int messageid, InlineKeyboardMarkup inlineMarkup)
         {
             string append = "editMessageReplyMarkup?chat_id=" + chatid.ToString();
-            append += "&reply_markup=" + JsonConvert.SerializeObject(inlineMarkup);
+            if (inlineMarkup != null)
+            {
+                append += "&reply_markup=" + JsonConvert.SerializeObject(inlineMarkup);
+            }
             append += "&message_id=" + messageid;
             HttpWebRequest request = (HttpWebRequest)WebRequest.Create(url + append);
             HttpWebResponse response = (HttpWebResponse)request.GetResponse();
@@ -548,10 +605,12 @@ namespace HaltMalKurzBot
         public ArrayList Cards { get; }
         private Random rnd = new Random();
         private CardPile pile;
+        private bool initialized = false;
 
         #region Constructor
         public CardStack(CardPile pile)
         {
+            Cards = new ArrayList();
             this.pile = pile;
             init();
             shuffle();
@@ -726,6 +785,7 @@ namespace HaltMalKurzBot
                 t = Type.IdRazupaltuff;
                 addCard(new Card(Symbol.IdRazupaltuff, t));
             }
+            initialized = true;
         }
         #endregion
 
@@ -733,7 +793,7 @@ namespace HaltMalKurzBot
         public void addCard(Card card)
         {
             Cards.Add(card);
-            shuffle();
+            if (initialized) shuffle();
         }
 
         public void shuffle()
@@ -742,17 +802,23 @@ namespace HaltMalKurzBot
             {
                 renewStack();
             }
-            Card[] oldCard = (Card[]) Cards.ToArray();
+            object[] objArray = Cards.ToArray();
+            Card[] oldCard = new Card[objArray.Length];
+            for (int i = 0; i < objArray.Length; i++)
+            {
+                oldCard[i] = (Card)objArray[i];
+            }
             Card[] newCard = new Card[oldCard.Length];
-            int[] usedInt = new int[oldCard.Length];
+            ArrayList usedInt = new ArrayList();
             int r;
             for (int i = 0; i < oldCard.Length; i++)
             {
                 do
                 {
                     r = rnd.Next(oldCard.Length);
-                } while (Array.IndexOf(usedInt, r)>-1);
+                } while (usedInt.IndexOf(r) > -1);
                 newCard[r] = oldCard[i];
+                usedInt.Add(r);
             }
             Cards.Clear();
             foreach (Card c in newCard)
@@ -793,6 +859,10 @@ namespace HaltMalKurzBot
     class CardPile  //Ablagestapel
     {
         public ArrayList Cards { get; }
+        public CardPile()
+        {
+            Cards = new ArrayList();
+        }
         public Card TopCard
         {
             get
@@ -825,6 +895,10 @@ namespace HaltMalKurzBot
         public ArrayList Cards { get; set; }
         public int CardCount { get { return Cards.Count; } }
 
+        public CardHand()
+        {
+            Cards = new ArrayList();
+        }
         public void addCard(Card c)
         {
             Cards.Add(c);
@@ -882,6 +956,11 @@ namespace HaltMalKurzBot
             threadGame = new Thread(gameThread);
             MaxRankWon = 0;
             Runde = 1;
+            Players = new ArrayList();
+            allPlayers = new ArrayList();
+            AllCalledBackData = new ArrayList();
+            Pile = new CardPile();
+            Stack = new CardStack(Pile);
         }
         #endregion
         #region Destructor
@@ -902,6 +981,8 @@ namespace HaltMalKurzBot
                     Players.Add(p);
                     p.Group = Group;
                     p.GameIn = this;
+                    Program.sendMessage(txt: p.FullName + " ist dem Spiel beigetreten. Es sind jetzt *" + Players.Count +
+                        "* Spieler. Mit *3* bis *5* Spielern kann das Spiel beginnen!", chatid: Group.Id, parsemode: "Markdown");
                     if (Players.Count == 5)
                     {
                         start();
@@ -931,9 +1012,9 @@ namespace HaltMalKurzBot
             running = true;
             int c = 10 - Players.Count;
             allPlayers = Players;
+            Program.sendMessage(txt: "Karten werden ausgeteilt...", chatid: Group.Id);
             foreach (Player p in Players)
             {
-                Program.sendMessage(txt: "Karten werden ausgeteilt...", chatid: Group.Id);
                 dealCards(player: p, count: c);
             }
             threadGame.Start();
@@ -958,7 +1039,7 @@ namespace HaltMalKurzBot
             Program.groups.Remove(Group);
             //show results
         }
-        private void waitForCallback(Message msg, int timeInSeconds = 30)
+        private void waitForCallback(int timeInSeconds = 30)
         {
             for (int i = 0; i < timeInSeconds * 2; i++)
             {
@@ -968,8 +1049,21 @@ namespace HaltMalKurzBot
                     return;
                 }
                 Thread.Sleep(500);
-                string[] s = { "Timeout" };
-                CalledBackData = s;
+            }
+            string[] s = { "Timeout" };
+            CalledBackData = s;
+        }
+
+        private void waitForBoxCallback(int timeInSeconds = 30)
+        {
+            for (int i = 0; i < timeInSeconds * 2; i++)
+            {
+                //Wait for callback
+                if (AllCalledBackData.Count >= Players.Count)
+                {
+                    return;
+                }
+                Thread.Sleep(500);
             }
         }
 
@@ -996,7 +1090,7 @@ namespace HaltMalKurzBot
             string msg = "Spieler-Übersicht:";
             foreach (Player p in Players)
             {
-                msg += "\n" + p.FullName + " (" + p.Hand.CardCount + " Karten";
+                msg += "\n" + p.FullName + " (" + p.Hand.CardCount + " Karten)";
             }
             Program.sendMessage(txt: msg, chatid: Group.Id);
             Runde++;
@@ -1011,9 +1105,16 @@ namespace HaltMalKurzBot
         #region Game Thread
         public void gameThread()
         {
-            Pile.addCard(Stack.drawCard());
+            Card firstCard = null;
+            do
+            {
+                firstCard = Stack.drawCard();
+                if (firstCard.TypeId == Type.IdRazupaltuff) Stack.addCard(firstCard);
+            } while (firstCard.TypeId == Type.IdRazupaltuff);
+            Pile.addCard(firstCard);
             Program.sendMessage(txt: "Das Spiel beginnt!\nMomentan hat jeder " + TurnPlayer.Hand.CardCount + " Karten",
                 chatid: Group.Id);
+            //send the sticker
             while (running)
             {
                 Player turnPlayer = TurnPlayer;
@@ -1089,7 +1190,8 @@ namespace HaltMalKurzBot
                             else
                             {
                                 Program.sendMessage(txt: turnPlayer.FullName + " hat entschieden, mit " + selectedPlayer.FullName
-                                    + " Karten zu tauschen.\nEr hat zehn Sekunden Zeit, eine Not-To-Do-Liste einzusetzen.", chatid: Group.Id);
+                                    + " Karten zu tauschen.\nEr / Sie hat zehn Sekunden Zeit, eine Not-To-Do-Liste einzusetzen.", 
+                                    chatid: Group.Id);
                                 bool blocked = false;
                                 if (selectedPlayer.hasNotToDoList(Pile))
                                 {
@@ -1146,7 +1248,7 @@ namespace HaltMalKurzBot
                                 msg = Program.editAndReturnMessage(chatid: m.Chat.Id, messageid: m.MessageId, txt: "Ohne Brunnen?",
                                     inlineMarkup: im);
                             }
-                            waitForCallback(msg, 10);
+                            waitForCallback(10);
                             string[] args = CalledBackData;
                             CalledBackData = null;
                             bool ohneBrunnen = false;
@@ -1158,16 +1260,16 @@ namespace HaltMalKurzBot
                             messages = null;
                             foreach (Player p in Players)
                             {
-                                InlineKeyboardButton b1 = new InlineKeyboardButton("Schere", Group.Id + ",schere," + p.Id);
+                                InlineKeyboardButton b1 = new InlineKeyboardButton("Schere", Group.Id + ",multiple,schere," + p.Id);
                                 InlineKeyboardButton[] bs1 = { b1 };
-                                InlineKeyboardButton b2 = new InlineKeyboardButton("Stein", Group.Id + ",stein," + p.Id);
+                                InlineKeyboardButton b2 = new InlineKeyboardButton("Stein", Group.Id + ",multiple,stein," + p.Id);
                                 InlineKeyboardButton[] bs2 = { b2 };
-                                InlineKeyboardButton b3 = new InlineKeyboardButton("Papier", Group.Id + ",papier," + p.Id);
+                                InlineKeyboardButton b3 = new InlineKeyboardButton("Papier", Group.Id + ",multiple,papier," + p.Id);
                                 InlineKeyboardButton[] bs3 = { b3 };
                                 InlineKeyboardMarkup im;
                                 if (!ohneBrunnen)
                                 {
-                                    InlineKeyboardButton b4 = new InlineKeyboardButton("Brunnen", Group.Id + ",brunnen," + p.Id);
+                                    InlineKeyboardButton b4 = new InlineKeyboardButton("Brunnen", Group.Id + ",multiple,brunnen," + p.Id);
                                     InlineKeyboardButton[] bs4 = { b4 };
                                     InlineKeyboardButton[][] buttons = { bs1, bs2, bs3, bs4 };
                                     im = new InlineKeyboardMarkup(buttons);
@@ -1186,7 +1288,7 @@ namespace HaltMalKurzBot
                             string[] turnPlayerArgs = null;
                             foreach (string[] s in argsList)
                             {
-                                if (s[2] == turnPlayer.Id.ToString())
+                                if (s[3] == turnPlayer.Id.ToString())
                                 {
                                     turnPlayerArgs = s;
                                     argsList.Remove(s);
@@ -1194,25 +1296,25 @@ namespace HaltMalKurzBot
                             }
                             ArrayList playerIdsWonAgainst = new ArrayList();
                             ArrayList playerIdsLostAgainst = new ArrayList();
-                            switch (turnPlayerArgs[1])
+                            switch (turnPlayerArgs[2])
                             {
                                 case "schere":
                                     Program.sendMessage(txt: "*" + turnPlayer.FullName + ":* Schere!", chatid: Group.Id, 
                                         parsemode: "Markdown");
                                     foreach (string[] arg2 in argsList)
                                     {
-                                        switch (arg2[1])
+                                        switch (arg2[2])
                                         {
                                             case "schere":
                                                 break;
                                             case "stein":
-                                                playerIdsLostAgainst.Add(arg2[2]);  //still string
+                                                playerIdsLostAgainst.Add(arg2[3]);  //still string
                                                 break;
                                             case "papier":
-                                                playerIdsWonAgainst.Add(arg2[2]);
+                                                playerIdsWonAgainst.Add(arg2[3]);
                                                 break;
                                             case "brunnen":
-                                                playerIdsLostAgainst.Add(arg2[2]);
+                                                playerIdsLostAgainst.Add(arg2[3]);
                                                 break;
                                         }
                                     }
@@ -1220,18 +1322,18 @@ namespace HaltMalKurzBot
                                 case "stein":
                                     foreach (string[] arg2 in argsList)
                                     {
-                                        switch (arg2[1])
+                                        switch (arg2[2])
                                         {
                                             case "schere":
-                                                playerIdsWonAgainst.Add(arg2[2]);
+                                                playerIdsWonAgainst.Add(arg2[3]);
                                                 break;
                                             case "stein":
                                                 break;
                                             case "papier":
-                                                playerIdsLostAgainst.Add(arg2[2]);
+                                                playerIdsLostAgainst.Add(arg2[3]);
                                                 break;
                                             case "brunnen":
-                                                playerIdsLostAgainst.Add(arg2[2]);
+                                                playerIdsLostAgainst.Add(arg2[3]);
                                                 break;
                                         }
                                     }
@@ -1239,18 +1341,18 @@ namespace HaltMalKurzBot
                                 case "papier":
                                     foreach (string[] arg2 in argsList)
                                     {
-                                        switch (arg2[1])
+                                        switch (arg2[2])
                                         {
                                             case "schere":
-                                                playerIdsLostAgainst.Add(arg2[2]);
+                                                playerIdsLostAgainst.Add(arg2[3]);
                                                 break;
                                             case "stein":
-                                                playerIdsWonAgainst.Add(arg2[2]);
+                                                playerIdsWonAgainst.Add(arg2[3]);
                                                 break;
                                             case "papier":
                                                 break;
                                             case "brunnen":
-                                                playerIdsWonAgainst.Add(arg2[2]);
+                                                playerIdsWonAgainst.Add(arg2[3]);
                                                 break;
                                         }
                                     }
@@ -1258,16 +1360,16 @@ namespace HaltMalKurzBot
                                 case "brunnen":
                                     foreach (string[] arg2 in argsList)
                                     {
-                                        switch (arg2[1])
+                                        switch (arg2[2])
                                         {
                                             case "schere":
-                                                playerIdsWonAgainst.Add(arg2[2]);
+                                                playerIdsWonAgainst.Add(arg2[3]);
                                                 break;
                                             case "stein":
-                                                playerIdsWonAgainst.Add(arg2[2]);
+                                                playerIdsWonAgainst.Add(arg2[3]);
                                                 break;
                                             case "papier":
-                                                playerIdsLostAgainst.Add(arg2[2]);
+                                                playerIdsLostAgainst.Add(arg2[3]);
                                                 break;
                                             case "brunnen":
                                                 break;
@@ -1307,7 +1409,23 @@ namespace HaltMalKurzBot
                                     if (p.Id.ToString() == s)
                                     {
                                         Program.sendMessage(txt: turnPlayer.FullName + " hat gegen " + p.FullName +
-                                            " gewonnen und darf ihm / ihr eine Karte geben.", chatid: Group.Id);
+                                            " gewonnen und darf ihm / ihr eine Karte geben.\n Es sei denn, er / sie setzt eine Not-To-Do-Liste ein.", 
+                                            chatid: Group.Id);
+                                        bool blocked = false;
+                                        Card notToDo = null;
+                                        if (p.hasNotToDoList(Pile))
+                                        {
+                                            notToDo = p.askNotToDoList(out blocked, Pile);
+                                        }
+                                        if (blocked)
+                                        {
+                                            Program.sendMessage(txt: "*" + p.FullName + ":* Das steht auf meiner Not-To-Do-Liste!",
+                                                chatid: Group.Id, parsemode: "Markdown");
+                                            Card taken = p.Hand.takeCard(notToDo);
+                                            Pile.addCard(taken);
+                                            p.drawCard(Stack);
+                                            continue;
+                                        }
                                         Card c = turnPlayer.selectCardNoDraw(turnPlayer.Hand.Cards, "Wähle eine Karte, die du " + p.FullName
                                             + " geben willst.", 10);
                                         if (c == null)
@@ -1357,6 +1475,20 @@ namespace HaltMalKurzBot
                             }
                             Program.sendMessage(txt: "*" + turnPlayer.FullName + ":* Halt mal kurz, " + sp.FullName + "!",
                                 chatid: Group.Id, parsemode: "Markdown");
+                            if (sp.hasNotToDoList(Pile))
+                            {
+                                bool blocked;
+                                Card notToDo = sp.askNotToDoList(out blocked, Pile);
+                                if (blocked)
+                                {
+                                    Program.sendMessage(txt: "*" + sp.FullName + ":* Das steht auf meiner Not-To-Do-Liste!",
+                                        chatid: Group.Id, parsemode: "Markdown");
+                                    Pile.addCard(sp.Hand.takeCard(notToDo));
+                                    sp.drawCard(Stack);
+                                    checkRoutine();
+                                    continue;
+                                }
+                            }
                             ArrayList cardsToGive = new ArrayList();
                             int cc = turnPlayer.Hand.CardCount;
                             for (int i = 0; i < cc/2; i++)
@@ -1401,6 +1533,19 @@ namespace HaltMalKurzBot
                                 if (p.Hand.CardCount == maxCards)
                                 {
                                     Program.sendMessage(txt: p.FullName + " muss zwei Karten ziehen!", chatid: Group.Id);
+                                    if (p.hasNotToDoList(Pile))
+                                    {
+                                        bool blocked;
+                                        Card notToDo = p.askNotToDoList(out blocked, Pile);
+                                        if (blocked)
+                                        {
+                                            Program.sendMessage(txt: "*" + p.FullName + ":* Das steht auf meiner Not-To-Do-Liste!",
+                                                chatid: Group.Id, parsemode: "Markdown");
+                                            Pile.addCard(p.Hand.takeCard(notToDo));
+                                            p.drawCard(Stack);
+                                            continue;
+                                        }
+                                    }
                                     p.drawCard(Stack);
                                     p.drawCard(Stack);
                                 }
@@ -1409,39 +1554,397 @@ namespace HaltMalKurzBot
                         #endregion
                         #region Kommunismus
                         case Type.RawIdKommunismus:
-
+                            Program.sendSticker(chatid: Group.Id, sticker: Program.kommunismusFileId);
+                            ArrayList playersToRemix = Players;
+                            ArrayList playersToAsk = Players;
+                            playersToAsk.Remove(turnPlayer);
+                            ArrayList messagesSent = new ArrayList();
+                            foreach (Player p in playersToAsk)
+                            {
+                                if (p.hasNotToDoList(Pile))
+                                {
+                                    InlineKeyboardButton button = new InlineKeyboardButton("Not-To-Do-Liste verwenden",
+                                        Group.Id + ",multiple,nope," + p.Id);
+                                    InlineKeyboardButton[] buttons = { button };
+                                    InlineKeyboardMarkup markup = new InlineKeyboardMarkup(buttons);
+                                    messagesSent.Add(Program.sendAndReturnMessage(txt: "Willst du eine Not-To-Do-Liste verwenden?",
+                                        chatid: p.Id, inlineMarkup: markup));
+                                }
+                            }
+                            Thread.Sleep(10 * 1000);
+                            ArrayList allArgs = AllCalledBackData;
+                            AllCalledBackData = null;
+                            foreach (string[] s in allArgs)
+                            {
+                                foreach (Player p in playersToAsk)
+                                {
+                                    if (s[3] == p.Id.ToString())
+                                    {
+                                        bool blocked;
+                                        Card c = p.askNotToDoList(out blocked, Pile, nono: true);
+                                        Program.sendMessage(txt: "*" + p.FullName + ":* Das steht auf meiner Not-To-Do-Liste!",
+                                            chatid: Group.Id, parsemode: "Markdown");
+                                        playersToRemix.Remove(p);
+                                        Pile.addCard(p.Hand.takeCard(c));
+                                        p.drawCard(Stack);
+                                    }
+                                }
+                            }
+                            ArrayList cardsCollected = new ArrayList();
+                            foreach (Player p in playersToRemix)
+                            {
+                                foreach (Card c in p.Hand.Cards)
+                                {
+                                    cardsCollected.Add(p.Hand.takeCard(c));
+                                }
+                            }
+                            int cardsReturned = 0;
+                            foreach (Card c in cardsCollected)
+                            {
+                                Player p = (Player)playersToRemix[cardsReturned % playersToRemix.Count];
+                                p.Hand.addCard(c);
+                            }
+                            foreach (Player p in playersToRemix)
+                            {
+                                p.tellCards();
+                            }
                             break;
                         #endregion
                         #region Nazi
                         case Type.RawIdNazi:
-
+                            InlineKeyboardButton b = new InlineKeyboardButton("Boxen!", Group.Id + ",numbered,getFrom,box");
+                            InlineKeyboardButton[] bs = { b };
+                            InlineKeyboardMarkup m1 = new InlineKeyboardMarkup(bs);
+                            switch (selectedCard.SymbolId)
+                            {
+                                //add button "Boxen!" to the stickers
+                                case Symbol.RawIdKleinkünstler:
+                                    Program.sendSticker(chatid: Group.Id, sticker: Program.naziKleinkünstlerFileId, inlineMarkup: m1);
+                                    break;
+                                case Symbol.RawIdKänguru:
+                                    Program.sendSticker(chatid: Group.Id, sticker: Program.naziKänguruFileId, inlineMarkup: m1);
+                                    break;
+                                case Symbol.RawIdPinguin:
+                                    Program.sendSticker(chatid: Group.Id, sticker: Program.naziPinguinFileId, inlineMarkup: m1);
+                                    break;
+                            }
+                            waitForBoxCallback(10);
+                            ArrayList argList = AllCalledBackData;
+                            AllCalledBackData = null;
+                            bool playerFailed = false;
+                            ArrayList playersFailed = new ArrayList();
+                            foreach (Player p in Players)
+                            {
+                                bool successful = false;
+                                foreach (string[] s in argList)
+                                {
+                                    if (s[2] == p.Id.ToString()) successful = true;
+                                }
+                                if (!successful)
+                                {
+                                    playersFailed.Add(p);
+                                    playerFailed = true;
+                                }
+                            }
+                            if (playerFailed)
+                            {
+                                foreach (Player p in playersFailed)
+                                {
+                                    Program.sendMessage(txt: p.FullName +
+                                        " hat nicht rechtzeitig auf den Nazi geschlagen! Er / sie muss eine Karte ziehen!",
+                                        chatid: Group.Id);
+                                    p.drawCard(Stack);
+                                }
+                                checkRoutine();
+                                continue;
+                            }
+                            else
+                            {
+                                foreach (string[] s in argList)
+                                {
+                                    if (s[1] == (Players.Count - 1).ToString())
+                                    {
+                                        foreach (Player p in Players)
+                                        {
+                                            if (p.Id.ToString() == s[2])
+                                            {
+                                                Program.sendMessage(txt: p.FullName +
+                                                    " hat als Letzter auf den Nazi geschlagen! Er / sie muss eine Karte ziehen!",
+                                                    chatid: Group.Id);
+                                                p.drawCard(Stack);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                             break;
                         #endregion
                         #region Not-To-Do-Liste
                         case Type.RawIdNotToDoListe:
-
+                            switch (selectedCard.SymbolId)
+                            {
+                                case Symbol.RawIdKleinkünstler:
+                                    Program.sendSticker(chatid: Group.Id, sticker: Program.notToDoListeKleinkünstlerFileId);
+                                    break;
+                                case Symbol.RawIdKänguru:
+                                    Program.sendSticker(chatid: Group.Id, sticker: Program.notToDoListeKänguruFileId);
+                                    break;
+                                case Symbol.RawIdPinguin:
+                                    Program.sendSticker(chatid: Group.Id, sticker: Program.notToDoListePinguinFileId);
+                                    break;
+                            }
                             break;
                         #endregion
                         #region Polizei
                         case Type.RawIdPolizei:
-
+                            InlineKeyboardButton b5 = new InlineKeyboardButton("Boxen!", Group.Id + ",numbered,getFrom,box");
+                            InlineKeyboardButton[] bs5 = { b5 };
+                            InlineKeyboardMarkup m5= new InlineKeyboardMarkup(bs5);
+                            switch (selectedCard.SymbolId)
+                            {
+                                //add button "Boxen!" to the stickers
+                                case Symbol.RawIdKleinkünstler:
+                                    Program.sendSticker(chatid: Group.Id, sticker: Program.polizeiKleinkünstlerFileId, inlineMarkup: m5);
+                                    break;
+                                case Symbol.RawIdKänguru:
+                                    Program.sendSticker(chatid: Group.Id, sticker: Program.polizeiKänguruFileId, inlineMarkup: m5);
+                                    break;
+                                case Symbol.RawIdPinguin:
+                                    Program.sendSticker(chatid: Group.Id, sticker: Program.polizeiPinguinFileId, inlineMarkup: m5);
+                                    break;
+                            }
+                            waitForBoxCallback(10);
+                            ArrayList policeArgs = AllCalledBackData;
+                            AllCalledBackData = null;
+                            foreach (string[] s in policeArgs)
+                            {
+                                foreach (Player p in Players)
+                                {
+                                    if (p.Id.ToString() == s[2])
+                                    {
+                                        Program.sendMessage(txt: p.FullName +
+                                            " hat die Polizei geschlagen! Das gibt STRESS... Eine Karte ziehen!", chatid: Group.Id);
+                                        p.drawCard(Stack);
+                                    }
+                                }
+                            }
                             break;
                         #endregion
                         #region SchnickSchnackSchnuck
                         case Type.RawIdSchnickSchnackSchnuck:
-
+                            switch (selectedCard.SymbolId)
+                            {
+                                case Symbol.RawIdKleinkünstler:
+                                    Program.sendSticker(chatid: Group.Id, sticker: Program.schnickSchnackSchnuckKleinkünstlerFileId);
+                                    break;
+                                case Symbol.RawIdKänguru:
+                                    Program.sendSticker(chatid: Group.Id, sticker: Program.schnickSchnackSchnuckKänguruFileId);
+                                    break;
+                                case Symbol.RawIdPinguin:
+                                    Program.sendSticker(chatid: Group.Id, sticker: Program.schnickSchnackSchnuckPinguinFileId);
+                                    break;
+                            }
+                            Program.sendMessage(txt: "*" + turnPlayer.FullName + ":* Schnick-Schnack-Schnuck!", chatid: Group.Id,
+                                parsemode: "Markdown");
+                            ArrayList whodoyouwant = Players;
+                            whodoyouwant.Remove(turnPlayer);
+                            Player selec = turnPlayer.selectPlayer(whodoyouwant,
+                                "Wähle einen Spieler, mit dem du Schnick-Schnack-Schnuck spielen willst");
+                            if (selec == null)
+                            {
+                                Program.sendMessage(txt: turnPlayer.FullName + " hat nichts ausgewählt.", chatid: Group.Id);
+                                Players.Remove(turnPlayer);
+                                turn--;
+                                checkRoutine();
+                                continue;
+                            }
+                            Program.sendMessage(txt: turnPlayer.FullName + " hat " + selec.FullName + " herausgefordert.",
+                                chatid: Group.Id);
+                            foreach (Message m in messages)
+                            {
+                                if (m.Chat.Id == turnPlayer.Id || m.Chat.Id == selec.Id)
+                                {
+                                    InlineKeyboardButton button = new InlineKeyboardButton("Ohne Brunnen!", Group.Id + ",ohnebrunnen,"
+                                        + m.Chat.FirstName + " " + m.Chat.LastName);
+                                    InlineKeyboardButton[] buttons = { button };
+                                    InlineKeyboardMarkup im = new InlineKeyboardMarkup(buttons);
+                                    msg = Program.editAndReturnMessage(chatid: m.Chat.Id, messageid: m.MessageId, txt: "Ohne Brunnen?",
+                                        inlineMarkup: im);
+                                }
+                            }
+                            waitForCallback(10);
+                            string[] cb = CalledBackData;
+                            CalledBackData = null;
+                            bool noBrunnen = false;
+                            if (!(cb[0] == "Timeout") && cb[1] == "ohnebrunnen")
+                            {
+                                Program.sendMessage(txt: "*" + cb[2] + ":* Ohne Brunnen!", chatid: Group.Id, parsemode: "Markdown");
+                                noBrunnen = true;
+                            }
+                            messages = null;
+                            int size = 3;
+                            if (!noBrunnen) size++;
+                            InlineKeyboardButton[][] butts = new InlineKeyboardButton[size][];
+                            InlineKeyboardButton b6 = new InlineKeyboardButton("Schere", Group.Id + ",schere");
+                            InlineKeyboardButton[] bs6 = { b6 };
+                            butts[0] = bs6;
+                            InlineKeyboardButton b7 = new InlineKeyboardButton("Stein", Group.Id + ",stein");
+                            InlineKeyboardButton[] bs7 = { b7 };
+                            butts[1] = bs7;
+                            InlineKeyboardButton b8 = new InlineKeyboardButton("Papier", Group.Id + ",papier");
+                            InlineKeyboardButton[] bs8 = { b8 };
+                            butts[2] = bs8;
+                            if (!noBrunnen)
+                            {
+                                InlineKeyboardButton b9 = new InlineKeyboardButton("Brunnen", Group.Id + ",brunnen");
+                                InlineKeyboardButton[] bs9 = { b9 };
+                                butts[3] = bs9;
+                            }
+                            InlineKeyboardMarkup ssp = new InlineKeyboardMarkup(butts);
+                            bool hasWon = false;
+                            bool remis = false;
+                            bool cont = true;
+                            do
+                            {
+                                Program.sendMessage(txt: "Schere, Stein oder Papier?", chatid: turnPlayer.Id, inlineMarkup: ssp);
+                                waitForCallback(10);
+                                string[] tpArgs = CalledBackData;
+                                CalledBackData = null;
+                                if (tpArgs == null)
+                                {
+                                    cont = false;
+                                    Program.sendMessage(txt: turnPlayer.FullName + " hat nichts ausgewählt.", chatid: Group.Id);
+                                    Players.Remove(turnPlayer);
+                                }
+                                Program.sendMessage(txt: "Schere, Stein oder Papier?", chatid: selec.Id, inlineMarkup: ssp);
+                                waitForCallback(10);
+                                string[] selecArgs = CalledBackData;
+                                CalledBackData = null;
+                                if (selecArgs == null)
+                                {
+                                    cont = false;
+                                    Program.sendMessage(txt: selec.FullName + " hat nichts ausgewählt.", chatid: Group.Id);
+                                    Players.Remove(selec);
+                                }
+                                hasWon = false;
+                                remis = false;
+                                if (cont)
+                                {
+                                    switch (tpArgs[1])
+                                    {
+                                        case "schere":
+                                            Program.sendMessage(txt: "*" + turnPlayer.FullName + ":* Schere!", chatid: Group.Id,
+                                                parsemode: "Markdown");
+                                            if (selecArgs[1] == "stein" || selecArgs[1] == "brunnen") hasWon = false;
+                                            if (selecArgs[1] == "papier") hasWon = true;
+                                            if (selecArgs[1] == "schere") remis = true;
+                                            break;
+                                        case "stein":
+                                            Program.sendMessage(txt: "*" + turnPlayer.FullName + ":* Stein!", chatid: Group.Id,
+                                                parsemode: "Markdown");
+                                            if (selecArgs[1] == "papier" || selecArgs[1] == "brunnen") hasWon = false;
+                                            if (selecArgs[1] == "schere") hasWon = true;
+                                            if (selecArgs[1] == "stein") remis = true;
+                                            break;
+                                        case "papier":
+                                            Program.sendMessage(txt: "*" + turnPlayer.FullName + ":* Papier!", chatid: Group.Id,
+                                                parsemode: "Markdown");
+                                            if (selecArgs[1] == "schere") hasWon = false;
+                                            if (selecArgs[1] == "stein" || selecArgs[1] == "brunnen") hasWon = true;
+                                            if (selecArgs[1] == "brunnen") remis = true;
+                                            break;
+                                        case "brunnen":
+                                            Program.sendMessage(txt: "*" + turnPlayer.FullName + ":* Brunnen!", chatid: Group.Id,
+                                                parsemode: "Markdown");
+                                            if (selecArgs[1] == "papier") hasWon = false;
+                                            if (selecArgs[1] == "schere" || selecArgs[1] == "stein") hasWon = true;
+                                            if (selecArgs[1] == "brunnen") remis = true;
+                                            break;
+                                    }
+                                    string text = "";
+                                    switch (selecArgs[1])
+                                    {
+                                        case "schere":
+                                            text = "Schere";
+                                            break;
+                                        case "stein":
+                                            text = "Stein";
+                                            break;
+                                        case "papier":
+                                            text = "Papier";
+                                            break;
+                                        case "brunnen":
+                                            text = "Brunnen";
+                                            break;
+                                    }
+                                    Program.sendMessage(txt: "*" + selec.FullName + ":* " + text + "!", chatid: Group.Id, 
+                                        parsemode: "Markdown");
+                                }
+                            } while (remis);
+                            if (!cont)
+                            {
+                                turn--;
+                                checkRoutine();
+                                continue;
+                            }
+                            if (hasWon)
+                            {
+                                Program.sendMessage(txt: turnPlayer.FullName + " hat gewonnen. Gib " + selec.FullName + " eine Karte.",
+                                    chatid: Group.Id);
+                                Card c = turnPlayer.selectCardNoDraw(turnPlayer.Hand.Cards, "Welche Karte möchtest du " +
+                                    selec.FullName + " geben?", 15);
+                                if (c == null)
+                                {
+                                    Program.sendMessage(txt: turnPlayer.FullName + " hat nichts gewählt. Pech gehabt!",
+                                        chatid: Group.Id);
+                                }
+                                else
+                                {
+                                    selec.Hand.addCard(turnPlayer.Hand.takeCard(c));
+                                }
+                            }
+                            else
+                            {
+                                Program.sendMessage(txt: selec.FullName + " hat gewonnen. Gib " + turnPlayer.FullName + " eine Karte.",
+                                    chatid: Group.Id);
+                                Card c = selec.selectCardNoDraw(selec.Hand.Cards, "Welche Karte möchtest du " +
+                                    turnPlayer.FullName + " geben?", 15);
+                                if (c == null)
+                                {
+                                    Program.sendMessage(txt: selec.FullName + " hat nichts gewählt. Pech gehabt!",
+                                        chatid: Group.Id);
+                                }
+                                else
+                                {
+                                    turnPlayer.Hand.addCard(selec.Hand.takeCard(c));
+                                }
+                            }
                             break;
                         #endregion
                         #region Vollversammlung
                         case Type.RawIdVollversammlung:
-
+                            switch (selectedCard.SymbolId)
+                            {
+                                case Symbol.RawIdKleinkünstler:
+                                    Program.sendSticker(chatid: Group.Id, sticker: Program.vollversammlungKleinkünstlerFileId);
+                                    break;
+                                case Symbol.RawIdKänguru:
+                                    Program.sendSticker(chatid: Group.Id, sticker: Program.vollversammlungKänguruFileId);
+                                    break;
+                                case Symbol.RawIdPinguin:
+                                    Program.sendSticker(chatid: Group.Id, sticker: Program.vollversammlungPinguinFileId);
+                                    break;
+                            }
+                            //last card, yay!   Oh...   Well.   So...   We'll need to...    Hm.
+                            //First, ask everyone who should lose a Card. Then, ask everyone who should take the card.
+                            Program.sendMessage(txt: "Diese Karte ist noch nicht implementiert, weil das verdammt schwer wird!",
+                                chatid: Group.Id);
                             break;
                         #endregion
                     }
                     checkRoutine();
                 }
                 #endregion
-                //Not implemented
             }
         }
         #endregion
@@ -1473,6 +1976,7 @@ namespace HaltMalKurzBot
                 FullName += " " + u.LastName;
             }
             RazupaltuffCount = 0;
+            Hand = new CardHand();
         }
 
         #region Methods
@@ -1482,6 +1986,7 @@ namespace HaltMalKurzBot
             int razupaltuffsSeen = 0;
             foreach (Card c in Hand.Cards)
             {
+                if (c == null) continue;
                 message += "\n" + c.ColorEmoji + c.SymbolEmoji + " " + c.TypeName;
                 if (c.TypeId == Type.IdRazupaltuff && razupaltuffsSeen >= RazupaltuffCount)
                 {
@@ -1494,6 +1999,7 @@ namespace HaltMalKurzBot
                     razupaltuffsSeen++;
                 }
             }
+            Program.sendMessage(txt: message, chatid: Id);
         }
 
         public void drawCard(CardStack cs)
@@ -1641,7 +2147,7 @@ namespace HaltMalKurzBot
             return false;
         }
 
-        public Card askNotToDoList(out bool yesIWant, CardPile pile)
+        public Card askNotToDoList(out bool yesIWant, CardPile pile, bool nono = false)
         {
             ArrayList selection = Hand.Cards;
             foreach (Card c in selection)
@@ -1651,7 +2157,9 @@ namespace HaltMalKurzBot
                     selection.Remove(c);
                 }
             }
-            InlineKeyboardButton[][] buttons = new InlineKeyboardButton[selection.Count][];
+            int count = selection.Count;
+            if (!nono) count++;
+            InlineKeyboardButton[][] buttons = new InlineKeyboardButton[count][];
             int i = 0;
             foreach (Card c in selection)
             {
@@ -1661,11 +2169,19 @@ namespace HaltMalKurzBot
                 buttons[i] = ba;
                 i++;
             }
-            InlineKeyboardButton b2 = new InlineKeyboardButton("Keine Not-To-Do-Liste einsetzen", Group.Id + ",no");
-            InlineKeyboardButton[] bs = { b2 };
-            buttons[i] = bs;
+            if (!nono)
+            {
+                InlineKeyboardButton b2 = new InlineKeyboardButton("Keine Not-To-Do-Liste einsetzen", Group.Id + ",no");
+                InlineKeyboardButton[] bs = { b2 };
+                buttons[i] = bs;
+            }
             InlineKeyboardMarkup im = new InlineKeyboardMarkup(buttons);
-            Message msg = Program.sendAndReturnMessage(txt: "Willst du eine Not-To-Do-Liste einsetzen?\nWenn ja, welche?", 
+            string txt = "Willst du eine Not-To-Do-Liste einsetzen?\nWenn ja, welche?";
+            if (nono)
+            {
+                txt = "Welche Not-To-Do-Liste willst du einsetzen?";
+            }
+            Message msg = Program.sendAndReturnMessage(txt: txt, 
                 chatid: Id, inlineMarkup: im);
             waitForCallback(msg, 10);
             string[] args = CalledBackData;
@@ -1673,6 +2189,10 @@ namespace HaltMalKurzBot
             if (args[0] == "Timeout")
             {
                 yesIWant = false;
+                if (nono)
+                {
+                    return (Card) selection[0];
+                }
                 return null;
             }
             else
