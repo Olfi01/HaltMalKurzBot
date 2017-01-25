@@ -60,6 +60,8 @@ namespace HaltMalKurzBot
         private const string apiToken = "278139117:AAFl13vIj7dVwbep1wQs1_Mw4mQZDa3yR3Y";    //the bot's api token
         private const string url = "https://api.telegram.org/bot" + apiToken + "/"; //should just stay like this
         public const string botUsername = "@HaltMalKurzBot";
+        private const long flomsId = 267376056;
+        private static readonly string projectPath = System.Windows.Forms.Application.StartupPath + "\\";
         #endregion
         #region Variables
         Random rnd = new Random();
@@ -71,10 +73,12 @@ namespace HaltMalKurzBot
         public static int newUpdate;
         private static Thread t;
         private static Thread t2;
+        private static ArrayList permissionIds = new ArrayList();
         #endregion
         #region Main Method
         static void Main(string[] args)
         {
+            readPermissionFile();
             bool consoleCycle = true;
             while (consoleCycle)
             {
@@ -190,6 +194,14 @@ namespace HaltMalKurzBot
                                 {
                                     g.AllCalledBackData.Add(args);
                                 }
+                                else if (args[1] == "process")
+                                {
+                                    if (args[2] == "getFrom")
+                                    {
+                                        args[2] = u.CallbackQuery.From.Id.ToString();
+                                    }
+                                    g.AllCalledBackDataToProcess.Add(args);
+                                }
                                 else if (args[1] == "numbered")
                                 {
                                     args[1] = g.AllCalledBackData.Count.ToString();
@@ -216,81 +228,105 @@ namespace HaltMalKurzBot
             {
                 case "/startgame":
                 case "/startgame" + botUsername:
-                    if (msg.Chat.Id < 0)
+                    if (permissionIds.Contains(msg.From.Id))
                     {
-                        bool contains = false;
-                        foreach (Chat c in groups)
+                        if (msg.Chat.Id < 0)
                         {
-                            if (c.Id == msg.Chat.Id) contains = true;
-                        }
-                        if (contains)
-                        {
-                            foreach (Game g in games)
+                            bool contains = false;
+                            foreach (Chat c in groups)
                             {
-                                if (g.Group.Id == msg.Chat.Id)
+                                if (c.Id == msg.Chat.Id) contains = true;
+                            }
+                            if (contains)
+                            {
+                                foreach (Game g in games)
                                 {
-                                    g.addPlayer(new Player(msg.From), msg);
-                                    break;
+                                    if (g.Group.Id == msg.Chat.Id)
+                                    {
+                                        g.addPlayer(new Player(msg.From), msg);
+                                        break;
+                                    }
                                 }
+                            }
+                            else
+                            {
+                                Game g = new Game(msg.Chat);
+                                games.Add(g);
+                                groups.Add(msg.Chat);
+                                Program.sendMessage(txt: "Spiel wurde gestartet. Nutzt /join um beizutreten und /go um das Spiel zu beginnen.",
+                                    chatid: msg.Chat.Id, replyto: msg);
+                                g.addPlayer(new Player(msg.From), msg);
                             }
                         }
                         else
                         {
-                            Game g = new Game(msg.Chat);
-                            games.Add(g);
-                            groups.Add(msg.Chat);
-                            Program.sendMessage(txt: "Spiel wurde gestartet. Nutzt /join um beizutreten und /go um das Spiel zu beginnen.",
-                                chatid: msg.Chat.Id, replyto: msg);
-                            g.addPlayer(new Player(msg.From), msg);
+                            sendMessage(txt: "Dieser Befehl funktioniert nur in einer Gruppe!", chatid: msg.Chat.Id, replyto: msg);
                         }
                     }
                     else
                     {
-                        sendMessage(txt: "Dieser Befehl funktioniert nur in einer Gruppe!", chatid: msg.Chat.Id, replyto: msg);
+                        sendMessage(txt: "Leider habe ich vom Verlag nur die Erlaubnis bekommen, den Bot privat zu nutzen, deshalb " +
+                            "muss ich die Erlaubnis leider persönlich vergeben.", chatid: msg.From.Id, replyto: msg);
                     }
                     break;
                 case "/join":
                 case "/join" + botUsername:
-                    bool foundGame = false;
-                    foreach (Game g in games)
+                    if (permissionIds.Contains(msg.From.Id))
                     {
-                        if (g.Group.Id == msg.Chat.Id)
+                        bool foundGame = false;
+                        foreach (Game g in games)
                         {
-                            g.addPlayer(new Player(msg.From), msg);
-                            foundGame = true;
-                            break;
+                            if (g.Group.Id == msg.Chat.Id)
+                            {
+                                g.addPlayer(new Player(msg.From), msg);
+                                foundGame = true;
+                                break;
+                            }
+                        }
+                        if (!foundGame)
+                        {
+                            sendMessage(txt: "Es läft gerade kein Spiel. Starte ein neues Spiel mit /startgame",
+                                chatid: msg.Chat.Id, replyto: msg);
                         }
                     }
-                    if (!foundGame)
+                    else
                     {
-                        sendMessage(txt: "Es läft gerade kein Spiel. Starte ein neues Spiel mit /startgame",
-                            chatid: msg.Chat.Id, replyto: msg);
+                        sendMessage(txt: "Leider habe ich vom Verlag nur die Erlaubnis bekommen, den Bot privat zu nutzen, deshalb " +
+                            "muss ich die Erlaubnis leider persönlich vergeben.", chatid: msg.From.Id, replyto: msg);
                     }
                     break;
                 case "/go":
                 case "/go" + botUsername:
-                    bool fGame = false;
-                    foreach (Game g in games)
+                    if (permissionIds.Contains(msg.From.Id))
                     {
-                        if (g.Group.Id == msg.Chat.Id)
+                        bool fGame = false;
+                        foreach (Game g in games)
                         {
-                            if (3 <= g.Players.Count)
+                            if (g.Group.Id == msg.Chat.Id)
                             {
-                                g.start();
+                                if (3 <= g.Players.Count)
+                                {
+                                    g.start();
+                                }
+                                else
+                                {
+                                    sendMessage(txt: "Es sind noch nicht genügend Spieler im Spiel, mindestens drei müssen es sein.",
+                                        chatid: msg.Chat.Id, replyto: msg);
+                                }
+                                fGame = true;
+                                break;
                             }
-                            else
-                            {
-                                sendMessage(txt: "Es sind noch nicht genügend Spieler im Spiel, mindestens drei müssen es sein.",
-                                    chatid: msg.Chat.Id, replyto: msg);
-                            }
-                            fGame = true;
-                            break;
+                        }
+                        if (!fGame)
+                        {
+                            sendMessage(txt: "Es läft gerade kein Spiel. Starte ein neues Spiel mit /startgame",
+                                chatid: msg.Chat.Id, replyto: msg);
                         }
                     }
-                    if (!fGame)
+                    else
                     {
-                        sendMessage(txt: "Es läft gerade kein Spiel. Starte ein neues Spiel mit /startgame",
-                            chatid: msg.Chat.Id, replyto: msg);
+                        sendMessage(txt: "Leider habe ich vom Verlag nur die Erlaubnis bekommen, den Bot privat zu nutzen, deshalb " +
+                            "muss ich die Erlaubnis leider persönlich vergeben.", chatid: msg.From.Id, replyto: msg);
                     }
                     break;
                 case "/anleitung":
@@ -301,8 +337,76 @@ namespace HaltMalKurzBot
                     InlineKeyboardMarkup im = new InlineKeyboardMarkup(bs);
                     sendMessage(txt: "Hier ist die Anleitung.", chatid: msg.Chat.Id, replyto: msg, inlineMarkup: im);
                     break;
+                case "!addpermission":
+                    if (msg.From.Id == flomsId)
+                    {
+                        if (msg.ReplyToMessage != null)
+                        {
+                            addIdToPermissionList(msg.ReplyToMessage.From.Id);
+                        }
+                        else
+                        {
+                            sendMessage(txt: "Antworte auf eine Nachricht", chatid: msg.Chat.Id, replyto: msg);
+                        }
+                    }
+                    else
+                    {
+                        sendMessage(txt: "Du bist nicht Flom!", chatid: msg.Chat.Id, replyto: msg);
+                    }
+                    break;
                 default:
                     break;
+            }
+        }
+        private static void addIdToPermissionList(long id)
+        {
+            if (!permissionIds.Contains(id))
+            {
+                permissionIds.Add(id);
+                writePermissionFile();
+            }
+        }
+        #endregion
+        #region File Methods
+        private static void writePermissionFile()
+        {
+            if (!System.IO.File.Exists(projectPath + "permission.txt"))
+            {
+                System.IO.File.Create(projectPath + "permission.txt");
+            }
+            System.IO.File.WriteAllText(projectPath + "permission.txt", "", System.Text.Encoding.UTF8);
+            foreach (string s in permissionIds)
+            {
+                System.IO.File.AppendAllText(projectPath + "permission.txt", s + "\n");
+            }
+        }
+        private static void readPermissionFile()
+        {
+            try
+            {
+                if (!System.IO.File.Exists(projectPath + "permission.txt"))
+                {
+                    System.IO.File.Create(projectPath + "permission.txt");
+                }
+                using (StreamReader sr = new StreamReader(projectPath + "permission.txt", System.Text.Encoding.UTF8))
+                {
+                    string s;
+                    Console.WriteLine("Permissions are being loaded...");
+                    do
+                    {
+                        s = sr.ReadLine();
+                        if (s != null)
+                        {
+                            permissionIds.Add((long) Convert.ToInt32(s));
+                            Console.WriteLine(s);
+                        }
+                    } while (s != null);
+                    Console.WriteLine("Permissions loaded.");
+                }
+            }
+            catch (Exception e)
+            {
+                throw e;
             }
         }
         #endregion
@@ -496,7 +600,11 @@ namespace HaltMalKurzBot
     #region Custom Classes
 
     #region Card
+#pragma warning disable CS0660 // Typ definiert Operator == oder Operator !=, überschreibt jedoch nicht Object.Equals(Objekt o)
+#pragma warning disable CS0661 // Typ definiert Operator == oder Operator !=, überschreibt jedoch nicht Object.GetHashCode()
     class Card
+#pragma warning restore CS0661 // Typ definiert Operator == oder Operator !=, überschreibt jedoch nicht Object.GetHashCode()
+#pragma warning restore CS0660 // Typ definiert Operator == oder Operator !=, überschreibt jedoch nicht Object.Equals(Objekt o)
     {
         public int SymbolId { get; }
         public int ColorId { get; }
@@ -578,6 +686,26 @@ namespace HaltMalKurzBot
                     TypeName = "Vollversammlung";
                     break;
             }
+        }
+        #endregion
+
+        #region Operators
+        public static bool operator == (Card c1, Card c2)
+        {
+            if (c1 == null || c2 == null)
+            {
+                return false;
+            }
+            return (c1.ColorId == c2.ColorId && c1.SymbolId == c2.SymbolId && c1.TypeId == c2.TypeId);
+        }
+
+        public static bool operator != (Card c1, Card c2)
+        {
+            if (c1 == null || c2 == null)
+            {
+                return true;
+            }
+            return !(c1.ColorId == c2.ColorId && c1.SymbolId == c2.SymbolId && c1.TypeId == c2.TypeId);
         }
         #endregion
 
@@ -933,6 +1061,7 @@ namespace HaltMalKurzBot
         public int MaxRankWon { get; set; }
         public int Runde { get; set; }
         public ArrayList AllCalledBackData { get; set; }
+        public ArrayList AllCalledBackDataToProcess { get; set; }
         private Random rnd = new Random();
         #endregion
         #region Constructor
@@ -1004,6 +1133,73 @@ namespace HaltMalKurzBot
             {
                 Program.sendMessage(txt: "Das Spiel läuft bereits, bitte warte auf das nächste Spiel", chatid: m.Chat.Id, replyto: m);
             }
+            return false;
+        }
+
+        private bool processVollversammlung(out Player p, int timeInSeconds = 30)
+        {
+            ArrayList allArgs = new ArrayList();
+            for (int i = 0; i < timeInSeconds * 2; i++)
+            {
+                foreach (string[] args in AllCalledBackDataToProcess)
+                {
+                    AllCalledBackDataToProcess.Remove(args);
+                    allArgs.Add(args);
+                    string playerNameVoteFrom = "";
+                    string playerNameVotedFor = "";
+                    foreach (Player p2 in Players)
+                    {
+                        if (p2.Id.ToString() == args[2])
+                        {
+                            playerNameVoteFrom = p2.FullName;
+                        }
+                        if (p2.Id.ToString() == args[3])
+                        {
+                            playerNameVotedFor = p2.FullName;
+                        }
+                    }
+                    Program.sendMessage(txt: playerNameVoteFrom + " hat für " + playerNameVotedFor + " gestimmt.", chatid: Group.Id);
+                }
+                Thread.Sleep(500);
+            }
+            bool remis = false;
+            int maxNumberOfVotes = -1;
+            foreach (Player p2 in Players)
+            {
+                int votesForThisPlayer = 0;
+                foreach (string[] s in allArgs)
+                {
+                    if (s[3] == p2.Id.ToString()) votesForThisPlayer++;
+                }
+                if (votesForThisPlayer > maxNumberOfVotes)
+                {
+                    maxNumberOfVotes = votesForThisPlayer;
+                    remis = false;
+                }
+                else if (votesForThisPlayer == maxNumberOfVotes) remis = true;
+            }
+            if (remis)
+            {
+                p = null;
+                return false;
+            }
+            else
+            {
+                foreach (Player p2 in Players)
+                {
+                    int votesForThisPlayer = 0;
+                    foreach (string[] s in allArgs)
+                    {
+                        if (s[3] == p2.Id.ToString()) votesForThisPlayer++;
+                    }
+                    if (votesForThisPlayer == maxNumberOfVotes)
+                    {
+                        p = p2;
+                        return true;
+                    }
+                }
+            }
+            p = null;
             return false;
         }
 
@@ -1937,8 +2133,66 @@ namespace HaltMalKurzBot
                             }
                             //last card, yay!   Oh...   Well.   So...   We'll need to...    Hm.
                             //First, ask everyone who should lose a Card. Then, ask everyone who should take the card.
+                            //Create a new field called CalledBackDataToProcess and a method that processes it
                             Program.sendMessage(txt: "Diese Karte ist noch nicht implementiert, weil das verdammt schwer wird!",
                                 chatid: Group.Id);
+                            Program.sendMessage(txt: "Die Vollversammlung hat begonnen! Zuerst wird ein Spieler gewählt," +
+                                "der eine Karte abgeben soll, dann einer, der sie erhalten soll.", chatid: Group.Id);
+                            Program.sendMessage(txt: "Es wird gewählt, wer eine Karte abgeben soll.", chatid: Group.Id);
+                            foreach (Player p in Players)
+                            {
+                                ArrayList sel = Players;
+                                sel.Remove(p);
+                                InlineKeyboardButton[][] bss9 = new InlineKeyboardButton[sel.Count][];
+                                int index = 0;
+                                foreach (Player p2 in sel)
+                                {
+                                    InlineKeyboardButton b9 = new InlineKeyboardButton(p2.FullName, Group.Id + ",process,getFrom," + p2.Id);
+                                    InlineKeyboardButton[] bs9 = { b9 };
+                                    bss9[index] = bs9;
+                                }
+                                InlineKeyboardMarkup im = new InlineKeyboardMarkup(bss9);
+                                Program.sendMessage(txt: "Welcher Spieler soll eine Karte abgeben?", chatid: p.Id, inlineMarkup: im);
+                            }
+                            Player playerToLoseCard;
+                            Player playerToGainCard;
+                            if (processVollversammlung(out playerToLoseCard))
+                            {
+                                Program.sendMessage(txt: "Es wird gewählt, wer die Karte erhalten soll.", chatid: Group.Id);
+                                foreach (Player p in Players)
+                                {
+                                    InlineKeyboardButton[][] bss9 = new InlineKeyboardButton[Players.Count][];
+                                    int index = 0;
+                                    foreach (Player p2 in Players)
+                                    {
+                                        InlineKeyboardButton b9 = new InlineKeyboardButton(p2.FullName, Group.Id + ",process,getFrom," + p2.Id);
+                                        InlineKeyboardButton[] bs9 = { b9 };
+                                        bss9[index] = bs9;
+                                    }
+                                    InlineKeyboardMarkup im = new InlineKeyboardMarkup(bss9);
+                                    Program.sendMessage(txt: "Welcher Spieler soll die Karte erhalten?", chatid: p.Id, inlineMarkup: im);
+                                }
+                            }
+                            else
+                            {
+                                Program.sendMessage(txt: "Es wurde keine Entscheidung getroffen. Es passiert NÜSCHT.", chatid: Group.Id);
+                                checkRoutine();
+                                continue;
+                            }
+                            if (processVollversammlung(out playerToGainCard))
+                            {
+                                Program.sendMessage(txt: "Eine Entscheidung wurde getroffen. " + playerToLoseCard.FullName + " gibt " +
+                                    playerToGainCard.FullName + " eine Karte.", chatid: Group.Id);
+                                Card cardToLose = playerToLoseCard.selectCardNoDraw(playerToLoseCard.Hand.Cards, "Wähle eine Karte, die du "
+                                    + playerToGainCard.FullName + " geben willst.");
+                                playerToGainCard.Hand.addCard(playerToLoseCard.Hand.takeCard(cardToLose));
+                            }
+                            else
+                            {
+                                Program.sendMessage(txt: "Es wurde keine Entscheidung getroffen. Es passiert NÜSCHT.", chatid: Group.Id);
+                                checkRoutine();
+                                continue;
+                            }
                             break;
                         #endregion
                     }
@@ -1953,7 +2207,11 @@ namespace HaltMalKurzBot
 
     #region Player
 
+#pragma warning disable CS0660 // Typ definiert Operator == oder Operator !=, überschreibt jedoch nicht Object.Equals(Objekt o)
+#pragma warning disable CS0661 // Typ definiert Operator == oder Operator !=, überschreibt jedoch nicht Object.GetHashCode()
     class Player
+#pragma warning restore CS0661 // Typ definiert Operator == oder Operator !=, überschreibt jedoch nicht Object.GetHashCode()
+#pragma warning restore CS0660 // Typ definiert Operator == oder Operator !=, überschreibt jedoch nicht Object.Equals(Objekt o)
     {
         public long Id { get; }
         public User User { get; }
@@ -1978,6 +2236,26 @@ namespace HaltMalKurzBot
             RazupaltuffCount = 0;
             Hand = new CardHand();
         }
+
+        #region Operators
+        public static bool operator == (Player p1, Player p2)
+        {
+            if (p1 == null || p2 == null)
+            {
+                return false;
+            }
+            return (p1.Id == p2.Id);
+        }
+
+        public static bool operator != (Player p1, Player p2)
+        {
+            if (p1 == null || p2 == null)
+            {
+                return true;
+            }
+            return !(p1.Id == p2.Id);
+        }
+        #endregion
 
         #region Methods
         public void tellCards()
