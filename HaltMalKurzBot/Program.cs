@@ -181,6 +181,10 @@ namespace HaltMalKurzBot
                                 }
                             }
                         }
+                        if (u.Message.Text.StartsWith("!") && !u.Message.Text.Contains(" "))
+                        {
+                            runCommand(cmd: u.Message.Text, msg: u.Message, upd: u);
+                        }
                     }
                     if (u.CallbackQuery != null)    //If the update is a callback query
                     {
@@ -222,13 +226,22 @@ namespace HaltMalKurzBot
             }
         }
 
+        private static bool hasPermission(long id)
+        {
+            foreach (long l in permissionIds)
+            {
+                if (l == id) return true;
+            }
+            return false;
+        }
+
         private static void runCommand(string cmd, Message msg, Update upd)
         {
             switch (cmd)
             {
                 case "/startgame":
                 case "/startgame" + botUsername:
-                    if (permissionIds.Contains(msg.From.Id))
+                    if (hasPermission(msg.From.Id))
                     {
                         if (msg.Chat.Id < 0)
                         {
@@ -266,12 +279,12 @@ namespace HaltMalKurzBot
                     else
                     {
                         sendMessage(txt: "Leider habe ich vom Verlag nur die Erlaubnis bekommen, den Bot privat zu nutzen, deshalb " +
-                            "muss ich die Erlaubnis leider persönlich vergeben.", chatid: msg.From.Id, replyto: msg);
+                            "muss ich die Erlaubnis leider persönlich vergeben.", chatid: msg.Chat.Id, replyto: msg);
                     }
                     break;
                 case "/join":
                 case "/join" + botUsername:
-                    if (permissionIds.Contains(msg.From.Id))
+                    if (hasPermission(msg.From.Id))
                     {
                         bool foundGame = false;
                         foreach (Game g in games)
@@ -292,12 +305,12 @@ namespace HaltMalKurzBot
                     else
                     {
                         sendMessage(txt: "Leider habe ich vom Verlag nur die Erlaubnis bekommen, den Bot privat zu nutzen, deshalb " +
-                            "muss ich die Erlaubnis leider persönlich vergeben.", chatid: msg.From.Id, replyto: msg);
+                            "muss ich die Erlaubnis leider persönlich vergeben.", chatid: msg.Chat.Id, replyto: msg);
                     }
                     break;
                 case "/go":
                 case "/go" + botUsername:
-                    if (permissionIds.Contains(msg.From.Id))
+                    if (hasPermission(msg.From.Id))
                     {
                         bool fGame = false;
                         foreach (Game g in games)
@@ -326,7 +339,7 @@ namespace HaltMalKurzBot
                     else
                     {
                         sendMessage(txt: "Leider habe ich vom Verlag nur die Erlaubnis bekommen, den Bot privat zu nutzen, deshalb " +
-                            "muss ich die Erlaubnis leider persönlich vergeben.", chatid: msg.From.Id, replyto: msg);
+                            "muss ich die Erlaubnis leider persönlich vergeben.", chatid: msg.Chat.Id, replyto: msg);
                     }
                     break;
                 case "/anleitung":
@@ -343,6 +356,7 @@ namespace HaltMalKurzBot
                         if (msg.ReplyToMessage != null)
                         {
                             addIdToPermissionList(msg.ReplyToMessage.From.Id);
+                            sendMessage(txt: "Erlaubnis hinzugefügt.", chatid: msg.Chat.Id, replyto: msg);
                         }
                         else
                         {
@@ -375,9 +389,9 @@ namespace HaltMalKurzBot
                 System.IO.File.Create(projectPath + "permission.txt");
             }
             System.IO.File.WriteAllText(projectPath + "permission.txt", "", System.Text.Encoding.UTF8);
-            foreach (string s in permissionIds)
+            foreach (long l in permissionIds)
             {
-                System.IO.File.AppendAllText(projectPath + "permission.txt", s + "\n");
+                System.IO.File.AppendAllText(projectPath + "permission.txt", l + "\n");
             }
         }
         private static void readPermissionFile()
@@ -692,20 +706,26 @@ namespace HaltMalKurzBot
         #region Operators
         public static bool operator == (Card c1, Card c2)
         {
-            if (c1 == null || c2 == null)
+            try
+            {
+                return (c1.ColorId == c2.ColorId && c1.SymbolId == c2.SymbolId && c1.TypeId == c2.TypeId);
+            }
+            catch (NullReferenceException)
             {
                 return false;
             }
-            return (c1.ColorId == c2.ColorId && c1.SymbolId == c2.SymbolId && c1.TypeId == c2.TypeId);
         }
 
         public static bool operator != (Card c1, Card c2)
         {
-            if (c1 == null || c2 == null)
+            try
+            {
+                return !(c1.ColorId == c2.ColorId && c1.SymbolId == c2.SymbolId && c1.TypeId == c2.TypeId);
+            }
+            catch (NullReferenceException)
             {
                 return true;
             }
-            return !(c1.ColorId == c2.ColorId && c1.SymbolId == c2.SymbolId && c1.TypeId == c2.TypeId);
         }
         #endregion
 
@@ -1034,7 +1054,11 @@ namespace HaltMalKurzBot
 
         public Card takeCard(Card c)
         {
-            Card returnCard = (Card) Cards[Cards.IndexOf(c)];
+            Card returnCard = null;
+            foreach (Card c2 in Cards)
+            {
+                if (c2 == c) returnCard = c2;
+            }
             Cards.Remove(returnCard);
             return returnCard;
         }
@@ -2240,20 +2264,26 @@ namespace HaltMalKurzBot
         #region Operators
         public static bool operator == (Player p1, Player p2)
         {
-            if (p1 == null || p2 == null)
+            try
+            {
+                return (p1.Id == p2.Id);
+            }
+            catch (NullReferenceException)
             {
                 return false;
             }
-            return (p1.Id == p2.Id);
         }
 
         public static bool operator != (Player p1, Player p2)
         {
-            if (p1 == null || p2 == null)
+            try
+            {
+                return !(p1.Id == p2.Id);
+            }
+            catch (NullReferenceException)
             {
                 return true;
             }
-            return !(p1.Id == p2.Id);
         }
         #endregion
 
