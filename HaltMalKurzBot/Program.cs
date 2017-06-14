@@ -61,6 +61,7 @@ namespace HaltMalKurzBot
         private const string url = "https://api.telegram.org/bot" + apiToken + "/"; //should just stay like this
         public const string botUsername = "@HaltMalKurzBot";
         private const long flomsId = 267376056;
+        private const long flomsBotTestGroupId = -1001070844778;
         private static readonly string projectPath = System.Windows.Forms.Application.StartupPath + "\\";
         #endregion
         #region Variables
@@ -108,6 +109,9 @@ namespace HaltMalKurzBot
                         Console.WriteLine("listgames");
                         Console.WriteLine("Listet alle Spiele auf");
                         Console.WriteLine("-----------------------------------");
+                        Console.WriteLine("sendmessage");
+                        Console.WriteLine("Sendet eine Nachricht in die flomsbottestgruppe");
+                        Console.WriteLine("-----------------------------------");
                         Console.WriteLine("exit");
                         Console.WriteLine("Beendet das gesamte Programm");
                         break;
@@ -116,6 +120,9 @@ namespace HaltMalKurzBot
                         if (t2 != null) t2.Abort();
                         Console.WriteLine("Bot stopped");
                         consoleCycle = false;
+                        break;
+                    case "sendmessage":
+                        sendMessage(txt: Console.ReadLine(), chatid: flomsBotTestGroupId);
                         break;
                     case "listgames":
                         Console.WriteLine("Alle Spiele:");
@@ -208,7 +215,14 @@ namespace HaltMalKurzBot
                                 }
                                 else if (args[1] == "numbered")
                                 {
-                                    args[1] = g.AllCalledBackData.Count.ToString();
+                                    if (g.AllCalledBackData == null)
+                                    {
+                                        args[1] = "0";
+                                    }
+                                    else
+                                    {
+                                        args[1] = g.AllCalledBackData.Count.ToString();
+                                    }
                                     if (args[2] == "getFrom")
                                     {
                                         args[2] = u.CallbackQuery.From.Id.ToString();
@@ -732,6 +746,12 @@ namespace HaltMalKurzBot
         #region Methods
         public bool fitsOn(Card anotherCard)
         {
+#pragma warning disable CS1718 // Vergleich erfolgte mit derselben Variable
+            if (anotherCard != anotherCard)
+#pragma warning restore CS1718 // Vergleich erfolgte mit derselben Variable
+            {
+                return false;
+            }
             if (SymbolId == anotherCard.SymbolId || ColorId == anotherCard.ColorId)
             {
                 return true;
@@ -1279,9 +1299,12 @@ namespace HaltMalKurzBot
             for (int i = 0; i < timeInSeconds * 2; i++)
             {
                 //Wait for callback
-                if (AllCalledBackData.Count >= Players.Count)
+                if (AllCalledBackData != null)
                 {
-                    return;
+                    if (AllCalledBackData.Count >= Players.Count)
+                    {
+                        return;
+                    }
                 }
                 Thread.Sleep(500);
             }
@@ -1503,7 +1526,7 @@ namespace HaltMalKurzBot
                             }
                             Thread.Sleep(15 * 1000);
                             ArrayList argsList = AllCalledBackData;
-                            AllCalledBackData = null;
+                            AllCalledBackData = new ArrayList();
                             //handle those arguments, determine winners and losers and so on... sigh
                             string[] turnPlayerArgs = null;
                             foreach (string[] s in argsList)
@@ -1511,9 +1534,9 @@ namespace HaltMalKurzBot
                                 if (s[3] == turnPlayer.Id.ToString())
                                 {
                                     turnPlayerArgs = s;
-                                    argsList.Remove(s);
                                 }
                             }
+                            argsList.Remove(turnPlayerArgs);
                             ArrayList playerIdsWonAgainst = new ArrayList();
                             ArrayList playerIdsLostAgainst = new ArrayList();
                             switch (turnPlayerArgs[2])
@@ -1679,7 +1702,8 @@ namespace HaltMalKurzBot
                                     Program.sendSticker(chatid: Group.Id, sticker: Program.haltMalKurzPinguinFileId);
                                     break;
                             }
-                            Program.sendMessage(txt: "*" + turnPlayer.FullName + ":* Halt mal kurz!", chatid: Group.Id);
+                            Program.sendMessage(txt: "*" + turnPlayer.FullName + ":* Halt mal kurz!", chatid: Group.Id,
+                                parsemode: "Markdown");
                             ArrayList selection = Players;
                             selection.Remove(turnPlayer);
                             Player sp = turnPlayer.selectPlayer(selection, "Wähle einen Spieler, der "
@@ -1713,7 +1737,7 @@ namespace HaltMalKurzBot
                             int cc = turnPlayer.Hand.CardCount;
                             for (int i = 0; i < cc/2; i++)
                             {
-                                Card c = (Card) turnPlayer.Hand.Cards[rnd.Next(cc)];
+                                Card c = (Card) turnPlayer.Hand.Cards[rnd.Next(turnPlayer.Hand.CardCount)];
                                 cardsToGive.Add(turnPlayer.Hand.takeCard(c));
                             }
                             foreach (Card c in cardsToGive)
@@ -1793,7 +1817,7 @@ namespace HaltMalKurzBot
                             }
                             Thread.Sleep(10 * 1000);
                             ArrayList allArgs = AllCalledBackData;
-                            AllCalledBackData = null;
+                            AllCalledBackData = new ArrayList();
                             foreach (string[] s in allArgs)
                             {
                                 foreach (Player p in playersToAsk)
@@ -1811,12 +1835,19 @@ namespace HaltMalKurzBot
                                 }
                             }
                             ArrayList cardsCollected = new ArrayList();
+                            ArrayList cardsToRemoveFromHand = new ArrayList();
                             foreach (Player p in playersToRemix)
                             {
                                 foreach (Card c in p.Hand.Cards)
                                 {
-                                    cardsCollected.Add(p.Hand.takeCard(c));
+                                    cardsCollected.Add(c);
+                                    cardsToRemoveFromHand.Add(c);
                                 }
+                                foreach (Card c in cardsToRemoveFromHand)
+                                {
+                                    p.Hand.takeCard(c);
+                                }
+                                cardsToRemoveFromHand = new ArrayList();
                             }
                             int cardsReturned = 0;
                             foreach (Card c in cardsCollected)
@@ -1850,7 +1881,7 @@ namespace HaltMalKurzBot
                             }
                             waitForBoxCallback(10);
                             ArrayList argList = AllCalledBackData;
-                            AllCalledBackData = null;
+                            AllCalledBackData = new ArrayList();
                             bool playerFailed = false;
                             ArrayList playersFailed = new ArrayList();
                             foreach (Player p in Players)
@@ -1935,7 +1966,7 @@ namespace HaltMalKurzBot
                             }
                             waitForBoxCallback(10);
                             ArrayList policeArgs = AllCalledBackData;
-                            AllCalledBackData = null;
+                            AllCalledBackData = new ArrayList();
                             foreach (string[] s in policeArgs)
                             {
                                 foreach (Player p in Players)
@@ -2324,7 +2355,7 @@ namespace HaltMalKurzBot
             foreach (Card c in selection)
             {
                 InlineKeyboardButton b = new InlineKeyboardButton(c.ColorEmoji + c.SymbolEmoji + " " + c.TypeName);
-                b.CallbackData = Group.Id + "," + c.ColorId + "," + c.SymbolId + "," + c.TypeName;
+                b.CallbackData = Group.Id + "," + c.ColorId + "," + c.SymbolId + "," + c.TypeId;
                 InlineKeyboardButton[] ba = { b };
                 buttons[i] = ba;
                 i++;
@@ -2423,6 +2454,7 @@ namespace HaltMalKurzBot
                 InlineKeyboardButton b = new InlineKeyboardButton(p.FullName, Group.Id + "," + p.Id);
                 InlineKeyboardButton[] ba = { b };
                 players[i] = ba;
+                i++;
             }
             InlineKeyboardMarkup im = new InlineKeyboardMarkup(players);
             Message massage = Program.sendAndReturnMessage(txt: msg, chatid: Id, inlineMarkup: im);
@@ -2458,12 +2490,17 @@ namespace HaltMalKurzBot
         public Card askNotToDoList(out bool yesIWant, CardPile pile, bool nono = false)
         {
             ArrayList selection = Hand.Cards;
+            ArrayList cardsToRemove = new ArrayList();
             foreach (Card c in selection)
             {
                 if (c.TypeId != Type.IdNotToDoListe || !c.fitsOn(pile.TopCard))
                 {
-                    selection.Remove(c);
+                    cardsToRemove.Add(c);
                 }
+            }
+            foreach (Card c in cardsToRemove)
+            {
+                selection.Remove(c);
             }
             int count = selection.Count;
             if (!nono) count++;
