@@ -1,9 +1,11 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 14
-VisualStudioVersion = 14.0.25420.1
+# Visual Studio 15
+VisualStudioVersion = 15.0.26430.6
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HaltMalKurzBot", "HaltMalKurzBot\HaltMalKurzBot.csproj", "{2309EC3E-4D20-4051-AE4E-A01A1620D8C0}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HaltMalKurzReworked", "HaltMalKurzReworked\HaltMalKurzReworked.csproj", "{56CFC650-E4E8-4BCA-A7F2-D67AB4A942C8}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -15,6 +17,10 @@ Global
 		{2309EC3E-4D20-4051-AE4E-A01A1620D8C0}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{2309EC3E-4D20-4051-AE4E-A01A1620D8C0}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{2309EC3E-4D20-4051-AE4E-A01A1620D8C0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{56CFC650-E4E8-4BCA-A7F2-D67AB4A942C8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{56CFC650-E4E8-4BCA-A7F2-D67AB4A942C8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{56CFC650-E4E8-4BCA-A7F2-D67AB4A942C8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{56CFC650-E4E8-4BCA-A7F2-D67AB4A942C8}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
