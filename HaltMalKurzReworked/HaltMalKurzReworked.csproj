@@ -75,6 +75,12 @@
       <DependentUpon>App.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="Game\Card.cs" />
+    <Compile Include="Game\Game.cs" />
+    <Compile Include="Game\Hand.cs" />
+    <Compile Include="Game\Pile.cs" />
+    <Compile Include="Game\Player.cs" />
+    <Compile Include="Game\Stack.cs" />
     <Compile Include="MainWindow.xaml.cs">
       <DependentUpon>MainWindow.xaml</DependentUpon>
       <SubType>Code</SubType>
