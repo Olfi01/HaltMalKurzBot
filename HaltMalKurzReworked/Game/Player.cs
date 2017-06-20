@@ -9,7 +9,7 @@ namespace HaltMalKurzReworked.Game
 {
     public class Player
     {
-        private Hand Hand = new Hand();
+        public Hand Hand { get; } = new Hand();
         public User TUser { get; }
         public Player(User user)
         {

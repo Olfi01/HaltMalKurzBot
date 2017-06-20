@@ -20,6 +20,7 @@ using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 using Telegram.Bot.Types.ReplyMarkups;
 using HaltMalKurzReworked.Game;
+using System.Threading;
 
 namespace HaltMalKurzReworked
 {
@@ -129,6 +130,10 @@ namespace HaltMalKurzReworked
                     Bot.Client.EditMessageTextAsync(groupid, query.Message.MessageId,
                         "Dieses Spiel hat begonnen!", replyMarkup: null);
                     Bot.SendTextMessage(groupid, res);
+                    GameThread gameThread = new GameThread(game, Bot.Client);
+                    Thread t = new Thread(gameThread.Start);
+                    t.Start();
+                    gameThread.Ended += (sender, g) => games.Remove(g);
                 }
                 else
                 {

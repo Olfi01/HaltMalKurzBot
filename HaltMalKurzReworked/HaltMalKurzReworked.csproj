@@ -77,6 +77,7 @@
     </Compile>
     <Compile Include="Game\Card.cs" />
     <Compile Include="Game\Game.cs" />
+    <Compile Include="Game\GameThread.cs" />
     <Compile Include="Game\Hand.cs" />
     <Compile Include="Game\Pile.cs" />
     <Compile Include="Game\Player.cs" />

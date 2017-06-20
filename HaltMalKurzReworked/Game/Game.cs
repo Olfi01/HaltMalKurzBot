@@ -14,11 +14,15 @@ namespace HaltMalKurzReworked.Game
         private TelegramBotClient Client { get; }
         public long GroupId { get; }
         public GameState State { get; set; }
+        public Pile Pile { get; }
+        public Stack Stack { get; }
         public HGame(long groupId, TelegramBotClient client)
         {
             GroupId = groupId;
             Client = client;
             State = GameState.JoinPhase;
+            Pile = new Pile();
+            Stack = new Stack(Pile);
         }
 
         public string Start()
@@ -55,7 +59,7 @@ namespace HaltMalKurzReworked.Game
             }
             catch (AggregateException)
             {
-                string pname = p.TUser.Username == null
+                string pname = p.TUser.Username != null
                     ? "@" + p.TUser.Username
                     : p.TUser.FirstName;
                 return $"Ich konnte {pname} nicht zum Spiel hinzufügen, "
