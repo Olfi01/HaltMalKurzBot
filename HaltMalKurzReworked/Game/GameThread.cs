@@ -2,11 +2,13 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
+using Telegram.Bot.Types.ReplyMarkups;
 
 namespace HaltMalKurzReworked.Game
 {
@@ -85,7 +87,45 @@ namespace HaltMalKurzReworked.Game
         private void HaveTurn(Player player)
         {
             Client.SendTextMessageAsync(Game.GroupId, $"{player.TUser.FirstName} ist dran. Er hat 33 Sekunden Zeit.");
-            
+            SelectCard(player, player.Hand.Cards.FindAll(x => Game.Pile.Fits(x)), canDraw: true, seconds: 33);
+        }
+
+        private void SelectCard(Player player, List<Card> cards, bool canDraw = false, int seconds = 30)
+        {
+            List<InlineKeyboardButton[]> rows = new List<InlineKeyboardButton[]>();
+            foreach (Card c in cards)
+            {
+                InlineKeyboardButton b = new InlineKeyboardButton(c.ToString(), $"card_{c.ToString()}@{Game.GroupId}");
+                rows.Add(new InlineKeyboardButton[] { b });
+            }
+            InlineKeyboardMarkup markup = new InlineKeyboardMarkup(rows.ToArray());
+            Task<Message> task = Client.SendTextMessageAsync(player.TUser.Id, "Lege eine Karte.", replyMarkup: markup);
+            task.Wait();
+            Message sent = task.Result;
+            ManualResetEvent e = new ManualResetEvent(false);
+            bool gotResponse = false;
+            string response = "";
+            Timer t = new Timer(x =>
+            { 
+                if (!gotResponse) Client.EditMessageTextAsync(sent.Chat.Id, sent.MessageId, "Leider zu spät...");
+                e.Set();
+            }, null, 1000 * seconds, Timeout.Infinite);
+            e.WaitOne();
+            gotResponse = true;
+            Client.OnCallbackQuery += (sender, ev) =>
+            {
+                string data = ev.CallbackQuery.Data;
+                Regex regex = new Regex(@"^card_.*@\d*$");
+                if (!regex.IsMatch(data)) return;
+                int underscoreIndex = data.IndexOf('_');
+                int atIndex = data.IndexOf('@');
+                long id = Convert.ToInt64(data.Substring(atIndex + 1));
+                if (id == Game.GroupId)
+                {
+                    response = data.Substring(underscoreIndex + 1).Remove(atIndex);
+                    e.Set();
+                }
+            };
         }
 
         #region Get Sticker Id
